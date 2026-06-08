@@ -10,6 +10,18 @@ from datetime     import datetime;
 
 console = Console();
 
+API_KEY = "";
+
+try:
+  with open(".key") as f:
+    API_KEY = f.readline().rstrip();
+except Exception as e:
+  console.print(
+    "OpenRouter API key not found! Put it inside .key file.",
+    style="bold red"
+  );
+  exit (1);
+
 MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
 GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -74,11 +86,11 @@ def DisplayModels(models : list):
   counter = 1;
 
   for item in models:
-    dick = [];
+    lstOut = [];
     for k,v in item[1].items():
-      dick.append(f"{ k } = { v }");
+      lstOut.append(f"{ k } = { v }");
 
-    table.add_row(f"{ counter }", item[0], " | ".join(dick));
+    table.add_row(f"{ counter }", item[0], " | ".join(lstOut));
     counter += 1;
 
   console.print(table);
@@ -176,21 +188,21 @@ def GenerateImage(prompt : str, modelName : str):
     else:
       console.print("Please enter y or n", style="red");
 
-  apiKey = "";
-
-  with open(".key") as f:
-    apiKey = f.readline().rstrip();
-
   console.print("Reaching out to OpenRouter...", style="cyan");
 
   response = requests.post(
     url=GENERATION_URL,
     headers={
-      "Authorization": f"Bearer { apiKey }",
+      "Authorization": f"Bearer { API_KEY }",
       "Content-Type": "application/json",
     },
     data=jsonToSend
   );
+
+  if (response.status_code != requests.codes.ok):
+    console.print("Got error:", style="bold red");
+    print_json(json.dumps(response.json()));
+    exit(1);
 
   result = response.json();
 
@@ -269,7 +281,7 @@ def main():
   if (args.file):
     try:
       with open(args.file, "r") as f:
-        prompt = "".join(f.readlines());
+        prompt = "".join(f.readlines()).replace("\n", " ");
     except Exception as e:
       console.print(f"{ e }", style="red");
       exit(1);
