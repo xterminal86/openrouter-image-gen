@@ -206,6 +206,12 @@ def GenerateImage(prompt : str, modelName : str):
 
   result = response.json();
 
+  #with open("full-reply.txt", "w") as f:
+  #  f.write(json.dumps(result, indent=2));
+
+  n = datetime.now().replace(microsecond=0);
+  ns = n.strftime("%Y-%m-%d-%H-%M-%S");
+
   # The generated image will be in the assistant message
   if result.get("choices"):
     message = result["choices"][0]["message"];
@@ -227,8 +233,6 @@ def GenerateImage(prompt : str, modelName : str):
         elif "image/webp" in metadata:
           extension = ".webp";
         image_data = base64.b64decode(encoded_image);
-        n = datetime.now().replace(microsecond=0);
-        ns = n.strftime("%Y-%m-%d-%H-%M-%S");
         dump_fname = f"output-{ ns }_{ imageCount }.txt";
         with open(dump_fname, "w") as f:
           f.write(modelName);
@@ -249,6 +253,22 @@ def GenerateImage(prompt : str, modelName : str):
             style="bold bright_yellow"
           );
         imageCount += 1;
+    else:
+      console.print(
+        "Received no images - it might've fallen back to text generation.",
+        style="bold yellow"
+      );
+      fname = f"{ ns }-full-response.txt";
+      fullResponse = json.dumps(result, indent=2);
+      with open(fname, "w") as f:
+        f.write(fullResponse);
+      console.print(f"Written { fname }");
+
+    console.print("Cost:");
+    console.print("-"*80);
+    print_json(json.dumps(result["usage"]));
+    console.print("-"*80);
+    console.print();
 
 ################################################################################
 
