@@ -235,6 +235,8 @@ def GenerateImage(prompt : str, modelName : str):
         image_data = base64.b64decode(encoded_image);
         dump_fname = f"output-{ ns }_{ imageCount }.txt";
         with open(dump_fname, "w") as f:
+          f.write(prompt);
+          f.write("\n");
           f.write(modelName);
           f.write("\n");
           f.write(metadata);
