@@ -1,1 +1,8 @@
 .key
+venv/
+generated/
+raw/
+errors/
+*.txt
+!requirements.txt
+

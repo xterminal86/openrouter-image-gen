@@ -2,6 +2,7 @@ import requests;
 import json;
 import argparse;
 import base64;
+import os;
 
 from rich         import box, print_json;
 from rich.table   import Table;
@@ -206,11 +207,18 @@ def GenerateImage(prompt : str, modelName : str):
 
   result = response.json();
 
-  #with open("full-reply.txt", "w") as f:
-  #  f.write(json.dumps(result, indent=2));
-
   n = datetime.now().replace(microsecond=0);
   ns = n.strftime("%Y-%m-%d-%H-%M-%S");
+
+  if not os.path.exists("raw"):
+    os.mkdir("raw");
+
+  os.makedirs("generated", exist_ok=True);
+  os.makedirs("raw",       exist_ok=True);
+  os.makedirs("errors",    exist_ok=True);
+
+  with open(f"raw/full-reply-{ ns }.txt", "w") as f:
+    f.write(json.dumps(result, indent=2));
 
   # The generated image will be in the assistant message
   if result.get("choices"):
@@ -233,7 +241,7 @@ def GenerateImage(prompt : str, modelName : str):
         elif "image/webp" in metadata:
           extension = ".webp";
         image_data = base64.b64decode(encoded_image);
-        dump_fname = f"output-{ ns }_{ imageCount }.txt";
+        dump_fname = f"raw/output-{ ns }_{ imageCount }.txt";
         with open(dump_fname, "w") as f:
           f.write(prompt);
           f.write("\n");
@@ -243,7 +251,7 @@ def GenerateImage(prompt : str, modelName : str):
           f.write("\n");
           f.write(encoded_image);
           f.write("\n");
-        image_fname = f"image-{ ns }_{ imageCount }{ extension }";
+        image_fname = f"generated/image-{ ns }_{ imageCount }{ extension }";
         if extension is not None:
           with open(image_fname, "wb") as f:
             f.write(image_data);
@@ -260,7 +268,7 @@ def GenerateImage(prompt : str, modelName : str):
         "Received no images - it might've fallen back to text generation.",
         style="bold yellow"
       );
-      fname = f"{ ns }-full-response.txt";
+      fname = f"errors/{ ns }-full-response.txt";
       fullResponse = json.dumps(result, indent=2);
       with open(fname, "w") as f:
         f.write(fullResponse);
