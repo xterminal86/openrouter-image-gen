@@ -21,12 +21,43 @@ except Exception as e:
     "OpenRouter API key not found! Put it inside .key file.",
     style="bold red"
   );
-  exit (1);
+  exit(1);
 
 MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
 GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
 CREDITS_URL     = "https://openrouter.ai/api/v1/credits";
 
+CommandMode = False;
+ReferenceImage = "";
+
+################################################################################
+
+def EncodeImage(fname : str) -> str:
+  extensionMap = {
+    "jpeg" : "jpeg",
+    "jpg"  : "jpeg",
+    "png"  : "png"
+  };
+  spl = fname.rsplit(".", maxsplit=1);
+  if len(spl) == 1:
+    console.print(
+      "File must have valid extension (png or jpg)!",
+      style="bold red"
+    );
+    return "";
+  if spl[1] not in extensionMap.keys():
+    console.print("Only jpg or png files are supported!", style="bold red");
+    return "";
+  extension = extensionMap[ spl[1] ];
+  try:
+    imageBytes = bytes();
+    with open(fname, "rb") as f:
+      imageBytes = base64.b64encode(f.read());
+    return f"data:image/{ extension };base64,{ imageBytes.decode('utf-8') }";
+  except Exception as e:
+    console.print(f"{ e }", style="bold red");
+    return "";
+  
 ################################################################################
 
 def ListModels(silent : bool = False) -> list:
@@ -36,11 +67,33 @@ def ListModels(silent : bool = False) -> list:
 
     table = Table(title="Available models", show_lines=True);
 
-    table.add_column("No.",         justify="left", style="bold bright_white");
-    table.add_column("Name",        justify="left", style="bold bright_cyan", overflow="fold");
-    table.add_column("Description", justify="left", style="bright_white", overflow="fold");
-    table.add_column("Created",     justify="center", style="bold");
-    table.add_column("Price",       justify="left", style="bold bright_yellow");
+    table.add_column(
+      "No.",
+      justify="center",
+      style="bold bright_white"
+    );
+    table.add_column(
+      "Name",
+      justify="center",
+      style="bold bright_cyan",
+      overflow="fold"
+    );
+    table.add_column(
+      "Description",
+      justify="left",
+      style="bright_white",
+      overflow="fold"
+    );
+    table.add_column(
+      "Created",
+      justify="center",
+      style="bold"
+    );
+    table.add_column(
+      "Price",
+      justify="left",
+      style="bold bright_yellow"
+    );
 
     lst = result["data"];
 
@@ -98,12 +151,25 @@ def ListModels(silent : bool = False) -> list:
 
 ################################################################################
 
-def DisplayModels(models : list):
+def DisplayModelsBrief(models : list):
   table = Table(title="Available models", show_lines=True, box=None);
 
-  table.add_column("No.", justify="left", style="bold bright_white");
-  table.add_column("Name", justify="left",style="bold bright_cyan");
-  table.add_column("Pricing",justify="left", style="bold bright_yellow", overflow="fold");
+  table.add_column(
+    "No.",
+    justify="left",
+    style="bold bright_white"
+  );
+  table.add_column(
+    "Name",
+    justify="left",
+    style="bold bright_cyan"
+  );
+  table.add_column(
+    "Pricing",
+    justify="left",
+    style="bold bright_yellow",
+    overflow="fold"
+  );
 
   counter = 1;
 
@@ -144,9 +210,9 @@ def DisplayCredits():
 
   table = Table(title="Credits", show_lines=True);
 
-  table.add_column("Total", style="bold green");
-  table.add_column("Used", style="bold red");
-  table.add_column("Left", style="bold yellow");
+  table.add_column("Total", justify="center", style="bold green");
+  table.add_column("Used",  justify="center", style="bold red");
+  table.add_column("Left",  justify="center", style="bold yellow");
 
   totalCreds = result.get("data", {}).get("total_credits", -1);
   totalUsage = result.get("data", {}).get("total_usage", -1);
@@ -197,7 +263,7 @@ def ChooseModel(models : list) -> int:
       "Choose a model (? to display models again, -1 to exit): "
     ).rstrip();
     if (entered == "?"):
-      DisplayModels(models);
+      DisplayModelsBrief(models);
       continue;
     try:
       choice = int(entered);
@@ -224,7 +290,12 @@ def GenerateImage(prompt : str, modelName : str):
     , "messages": [
         {
           "role": "user",
-          "content": prompt
+          "content" : [
+            {
+              "type" : "text",
+              "text" : prompt
+            }
+          ]
         }
       ]
     , "modalities": [ "image" ]
@@ -232,14 +303,25 @@ def GenerateImage(prompt : str, modelName : str):
       "aspect_ratio": "1:1"
     }
   };
-
+  
+  global ReferenceImage;
+  if ReferenceImage:
+    toAppend = {
+      "type" : "image_url",
+      "image_url" : {
+        "url" : ReferenceImage
+      }
+    };
+    jsonPayload["messages"][0]["content"].append(toAppend);
+  else:
+    jsonPayload["messages"][0]["content"] = prompt;
+    
   jsonToSend = json.dumps(jsonPayload);
-
+  
   while True:
     print();
     print("Request to send:");
     print("-"*80);
-    #print(f"{ jsonToSend }");
     print_json(jsonToSend);
     print("-"*80);
     print();
@@ -247,8 +329,11 @@ def GenerateImage(prompt : str, modelName : str):
     if reply in ("y", "yes"):
       break;
     elif reply in ("n", "no"):
-      print("Aight den, not doing shit.");
-      exit(1);
+      console.print("Aight den, not doing shit.", style="bold cyan");
+      if not CommandMode:
+        exit(1);
+      else:
+        return;
     else:
       console.print("Please enter y or n", style="red");
 
@@ -266,7 +351,11 @@ def GenerateImage(prompt : str, modelName : str):
   if (response.status_code != requests.codes.ok):
     console.print("Got error:", style="bold red");
     print_json(json.dumps(response.json()));
-    exit(1);
+    
+    if not CommandMode:
+      exit(1);
+    else:
+      return;
 
   result = response.json();
 
@@ -283,14 +372,11 @@ def GenerateImage(prompt : str, modelName : str):
   with open(f"raw/full-reply-{ ns }.txt", "w") as f:
     f.write(json.dumps(result, indent=2));
 
-  # The generated image will be in the assistant message
   if result.get("choices"):
     message = result["choices"][0]["message"];
     if message.get("images"):
       imageCount = 1;
       for image in message["images"]:
-        #print(image)
-        #print("-"*80)
         output = image["image_url"]["url"];
         metadata, encoded_image = output.split(",", 1);
         print(f"Got { metadata }");
@@ -349,16 +435,86 @@ def GenerateImage(prompt : str, modelName : str):
 
 ################################################################################
 
+def DisplayModel(modelInd : int, model : dict):
+  table = Table(show_lines=True);
+  
+  table.add_column(
+    "No.",
+    justify="center",
+    style="bold bright_white"
+  );
+  table.add_column(
+    "Name",
+    justify="center",
+    style="bold bright_cyan",
+    overflow="fold"
+  );
+  table.add_column(
+    "Description",
+    justify="left",
+    style="bright_white",
+    overflow="fold"
+  );
+  table.add_column(
+    "Created",
+    justify="center",
+    style="bold"
+  );
+  table.add_column(
+    "Pricing",
+    justify="left",
+    style="bold bright_yellow",
+    overflow="fold"
+  );
+  
+  modelName = model["id"];
+  
+  pricing = [];
+  
+  pricingStr = "";
+  dateCreated = "-";
+  descStr = "";
+  
+  if "openrouter/free" not in modelName:
+    for k,v in model["pricing"].items():
+      pricing.append(f"{ k } = { v }");
+    pricingStr = " | ".join(pricing);
+    dateCreated = datetime.fromtimestamp(model["created"]).strftime("%Y-%m-%d");
+    descStr = model["description"];
+  else:
+    pricingStr = "0";
+    descStr = "Auto router to random free model.";
+    
+  table.add_row(
+    f"{ modelInd + 1 }",
+    modelName,
+    descStr,
+    dateCreated,
+    pricingStr
+  );
+  
+  console.print(table);
+  
+################################################################################
+
 def ProcessCommands():
+  global ReferenceImage;
+  
   cmds = {
-    "/exit" : "Nuff said",
-    "/credits" : "Display financial information",
-    "/models" : "Display list of available models",
-    "/prompt <TEXT>" : "Prepare request to image generation",
-    "/select <NUMBER>" : "Select model from the /models list"
+      "/brief" : "Display models brief information"
+    , "/credits" : "Display financial information"
+    , "/exit" : "Nuff said"
+    , "/image [<PATH TO FILE>]" : "Set / reset base64 encoded image file"
+    , "/info <MODEL INDEX>" : "Display information about model no. <MODEL INDEX>"
+    , "/models" : "Display list of available models"
+    , "/prompt <TEXT>" : "Prepare request to image generation"
+    , "/select <MODEL INDEX>" : "Select model from the /models list"
+    , "/url [<IMAGE URL>]" : "Set /reset reference image URL"
   };
 
   models = [];
+  modelsBrief = [];
+  
   modelInd = -1;
 
   cmdPrompt = "> ";
@@ -378,10 +534,29 @@ def ProcessCommands():
 
         if command == "/exit":
           break;
+        elif command == "/info":
+          if len(spl) == 1:
+            console.print("Need model index!", style="bold red");
+          else:
+            try:
+              modelInd = int(spl[1]);
+              if not models:
+                models = ListModels(True);
+              modelInd -= 1;
+              if (modelInd < 0) or (modelInd >= len(models)):
+                console.print("Invalid model index", style="bold red");
+              else:
+                DisplayModel(modelInd, models[modelInd]);
+            except ValueError as e:
+              console.print("Not a number", style="bold red");
         elif command == "/credits":
           DisplayCredits();
         elif command == "/models":
           models = ListModels();
+        elif command == "/brief":
+          if not modelsBrief:
+            modelsBrief = GetModelsListBrief();
+          DisplayModelsBrief(modelsBrief);
         elif command == "/select":
           try:
             modelInd = int(spl[1]);
@@ -397,6 +572,18 @@ def ProcessCommands():
 
           except ValueError as e:
             console.print("Not a number", style="bold red");
+        elif command == "/image":
+          if len(spl) == 1:
+            console.print("Reference image is reset.", style="bold white");
+            ReferenceImage = "";
+          else:
+            ReferenceImage = EncodeImage(spl[1]);
+        elif command == "/url":
+          if len(spl) == 1:
+            console.print("Reference image is reset.", style="bold white");
+            ReferenceImage = "";
+          else:
+            ReferenceImage = spl[1];
         elif command == "/prompt":
           try:
             prompt = spl[1];
@@ -464,7 +651,7 @@ def main():
     ListModels();
   elif (prompt):
     models = GetModelsListBrief();
-    DisplayModels(models);
+    DisplayModelsBrief(models);
     DisplayCredits();
     choice = ChooseModel(models);
     if (choice == -1):
@@ -476,6 +663,8 @@ def main():
     );
     GenerateImage(prompt, models[choice][0]);
   else:
+    global CommandMode;
+    CommandMode = True;
     ProcessCommands();
 
 ################################################################################

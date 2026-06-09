@@ -6,4 +6,7 @@ raw/
 errors/
 *.txt
 !requirements.txt
-
+*.png
+*.jpg
+*.jpeg
+*.svg
