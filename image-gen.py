@@ -363,6 +363,10 @@ def ProcessCommands():
 
   cmdPrompt = "> ";
 
+  console.print("Starting command mode.", style="bold white");
+  console.print("/help to display help.");
+  console.print("/exit to exit.");
+
   try:
     while True:
       inLine = input(cmdPrompt).strip();
