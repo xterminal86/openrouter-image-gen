@@ -10,3 +10,4 @@ errors/
 *.jpg
 *.jpeg
 *.svg
+!logo.png
