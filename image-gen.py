@@ -25,7 +25,7 @@ except Exception as e:
 
 MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
 GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
-CREDITS_URL = "https://openrouter.ai/api/v1/credits"
+CREDITS_URL     = "https://openrouter.ai/api/v1/credits";
 
 ################################################################################
 
