@@ -398,11 +398,14 @@ def ProcessCommands():
           except ValueError as e:
             console.print("Not a number", style="bold red");
         elif command == "/prompt":
-          prompt = spl[1];
-          if modelInd == -1:
-            console.print("Select model first", style="bold red");
-          else:
-            GenerateImage(prompt, models[modelInd]["id"]);
+          try:
+            prompt = spl[1];
+            if modelInd == -1:
+              console.print("Select model first", style="bold red");
+            else:
+              GenerateImage(prompt, models[modelInd]["id"]);
+          except IndexError as e:
+            console.print("Empty prompt string", style="bold red");
         elif command == "/help":
           table = Table(title="Available commands", show_lines=False);
 
