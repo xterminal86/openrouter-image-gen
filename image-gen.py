@@ -25,10 +25,11 @@ except Exception as e:
 
 MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
 GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
+CREDITS_URL = "https://openrouter.ai/api/v1/credits"
 
 ################################################################################
 
-def ListModels():
+def ListModels(silent : bool = False) -> list:
   try:
     response = requests.get(url=MODELS_LIST_URL);
     result = response.json();
@@ -38,7 +39,7 @@ def ListModels():
     table.add_column("No.",         justify="left", style="bold bright_white");
     table.add_column("Name",        justify="left", style="bold bright_cyan", overflow="fold");
     table.add_column("Description", justify="left", style="bright_white", overflow="fold");
-    table.add_column("Created",     justify="left", style="bold");
+    table.add_column("Created",     justify="center", style="bold");
     table.add_column("Price",       justify="left", style="bold bright_yellow");
 
     lst = result["data"];
@@ -69,7 +70,27 @@ def ListModels():
 
       counter += 1;
 
-    console.print(table);
+    d = {
+      "id" : "openrouter/free",
+      "description" : "Automatic router to any free model.",
+      "created" : "-",
+      "pricing" : "0"
+    };
+
+    lst.append(d);
+
+    table.add_row(
+      f"{ counter }",
+      d["id"],
+      d["description"],
+      d["created"],
+      d["pricing"]
+    );
+
+    if not silent:
+      console.print(table);
+
+    return lst;
 
   except Exception as e:
     print(f"{ e }");
@@ -88,11 +109,51 @@ def DisplayModels(models : list):
 
   for item in models:
     lstOut = [];
-    for k,v in item[1].items():
-      lstOut.append(f"{ k } = { v }");
 
-    table.add_row(f"{ counter }", item[0], " | ".join(lstOut));
+    if item[1]:
+      for k,v in item[1].items():
+        lstOut.append(f"{ k } = { v }");
+
+    table.add_row(
+      f"{ counter }", item[0], "0" if not lstOut else " | ".join(lstOut)
+    );
+
     counter += 1;
+
+  console.print(table);
+
+################################################################################
+
+def DisplayCredits():
+  response = requests.get(
+    url=CREDITS_URL,
+    headers={
+      "Authorization": f"Bearer { API_KEY }",
+    }
+  );
+
+  if (response.status_code != requests.codes.ok):
+    console.print(
+      "Got error while trying to get credits information:",
+      style="bold red"
+    );
+    print_json(json.dumps(response.json()));
+    exit(1);
+
+  result = response.json();
+
+  table = Table(title="Credits", show_lines=True);
+
+  table.add_column("Total", style="bold green");
+  table.add_column("Used", style="bold red");
+  table.add_column("Left", style="bold yellow");
+
+  totalCreds = result.get("data", {}).get("total_credits", -1);
+  totalUsage = result.get("data", {}).get("total_usage", -1);
+
+  credsLeft = totalCreds - totalUsage;
+
+  table.add_row(f"{ totalCreds }", f"{ totalUsage }", f"{ credsLeft }");
 
   console.print(table);
 
@@ -121,6 +182,8 @@ def GetModelsListBrief() -> list:
   except Exception as e:
     print(f"{ e }");
     exit(1);
+
+  res.append(("openrouter/free", {}, {}));
 
   return res;
 
@@ -274,6 +337,10 @@ def GenerateImage(prompt : str, modelName : str):
         f.write(fullResponse);
       console.print(f"Written { fname }");
 
+    if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
+      console.print("Model used: ", end="");
+      console.print(f"{ result['model'] }", style="bold cyan");
+
     console.print("Cost:");
     console.print("-"*80);
     print_json(json.dumps(result["usage"]));
@@ -282,8 +349,78 @@ def GenerateImage(prompt : str, modelName : str):
 
 ################################################################################
 
+def ProcessCommands():
+  cmds = {
+    "/exit" : "Nuff said",
+    "/credits" : "Display financial information",
+    "/models" : "Display list of available models",
+    "/prompt <TEXT>" : "Prepare request to image generation",
+    "/select <NUMBER>" : "Select model from the /models list"
+  };
+
+  models = [];
+  modelInd = -1;
+
+  cmdPrompt = "> ";
+
+  try:
+    while True:
+      inLine = input(cmdPrompt).strip();
+
+      spl = inLine.split(maxsplit=1);
+
+      if spl:
+        command = spl[0];
+
+        if command == "/exit":
+          break;
+        elif command == "/credits":
+          DisplayCredits();
+        elif command == "/models":
+          models = ListModels();
+        elif command == "/select":
+          try:
+            modelInd = int(spl[1]);
+            if not models:
+              models = ListModels(True);
+            modelInd -= 1;
+
+            if (modelInd < 0) or (modelInd >= len(models)):
+              console.print("Invalid model index", style="bold red");
+            else:
+              console.print(f"Selected model '{ models[modelInd]['id'] }'");
+              cmdPrompt = f"{ models[modelInd]['id'] } > ";
+
+          except ValueError as e:
+            console.print("Not a number", style="bold red");
+        elif command == "/prompt":
+          prompt = spl[1];
+          if modelInd == -1:
+            console.print("Select model first", style="bold red");
+          else:
+            GenerateImage(prompt, models[modelInd]["id"]);
+        elif command == "/help":
+          table = Table(title="Available commands", show_lines=False);
+
+          table.add_column("Command", style="bold cyan");
+          table.add_column("Description", style="bold white");
+
+          for k,v in cmds.items():
+            table.add_row(k, v);
+
+          console.print(table);
+        else:
+          console.print("Invalid command", style="bold red");
+  except EOFError:
+    console.print();
+    exit(1);
+
+################################################################################
+
 def main():
-  parser = argparse.ArgumentParser();
+  parser = argparse.ArgumentParser(
+    epilog="Runs in command mode if started without arguments."
+  );
 
   group = parser.add_mutually_exclusive_group();
 
@@ -299,7 +436,7 @@ def main():
     help="Read prompt from file"
   );
   group.add_argument(
-    "--list",
+    "--models",
     action="store_true",
     help="List available models"
   );
@@ -316,11 +453,12 @@ def main():
       console.print(f"{ e }", style="red");
       exit(1);
 
-  if (args.list):
+  if (args.models):
     ListModels();
   elif (prompt):
     models = GetModelsListBrief();
     DisplayModels(models);
+    DisplayCredits();
     choice = ChooseModel(models);
     if (choice == -1):
       exit(1);
@@ -331,7 +469,7 @@ def main():
     );
     GenerateImage(prompt, models[choice][0]);
   else:
-    parser.print_help();
+    ProcessCommands();
 
 ################################################################################
 
