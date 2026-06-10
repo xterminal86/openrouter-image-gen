@@ -57,7 +57,7 @@ def EncodeImage(fname : str) -> str:
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
-  
+
 ################################################################################
 
 def ListModels(silent : bool = False) -> list:
@@ -303,7 +303,7 @@ def GenerateImage(prompt : str, modelName : str):
       "aspect_ratio": "1:1"
     }
   };
-  
+
   global ReferenceImage;
   if ReferenceImage:
     toAppend = {
@@ -315,9 +315,9 @@ def GenerateImage(prompt : str, modelName : str):
     jsonPayload["messages"][0]["content"].append(toAppend);
   else:
     jsonPayload["messages"][0]["content"] = prompt;
-    
+
   jsonToSend = json.dumps(jsonPayload);
-  
+
   while True:
     print();
     print("Request to send:");
@@ -351,13 +351,18 @@ def GenerateImage(prompt : str, modelName : str):
   if (response.status_code != requests.codes.ok):
     console.print("Got error:", style="bold red");
     print_json(json.dumps(response.json()));
-    
+
     if not CommandMode:
       exit(1);
     else:
       return;
 
   result = response.json();
+
+  if "error" in result.keys():
+    console.print("Got error:", style="bold red");
+    print_json(json.dumps(result));
+    return;
 
   n = datetime.now().replace(microsecond=0);
   ns = n.strftime("%Y-%m-%d-%H-%M-%S");
@@ -437,7 +442,7 @@ def GenerateImage(prompt : str, modelName : str):
 
 def DisplayModel(modelInd : int, model : dict):
   table = Table(show_lines=True);
-  
+
   table.add_column(
     "No.",
     justify="center",
@@ -466,15 +471,15 @@ def DisplayModel(modelInd : int, model : dict):
     style="bold bright_yellow",
     overflow="fold"
   );
-  
+
   modelName = model["id"];
-  
+
   pricing = [];
-  
+
   pricingStr = "";
   dateCreated = "-";
   descStr = "";
-  
+
   if "openrouter/free" not in modelName:
     for k,v in model["pricing"].items():
       pricing.append(f"{ k } = { v }");
@@ -484,7 +489,7 @@ def DisplayModel(modelInd : int, model : dict):
   else:
     pricingStr = "0";
     descStr = "Auto router to random free model.";
-    
+
   table.add_row(
     f"{ modelInd + 1 }",
     modelName,
@@ -492,14 +497,14 @@ def DisplayModel(modelInd : int, model : dict):
     dateCreated,
     pricingStr
   );
-  
+
   console.print(table);
-  
+
 ################################################################################
 
 def ProcessCommands():
   global ReferenceImage;
-  
+
   cmds = {
       "/brief" : "Display models brief information"
     , "/credits" : "Display financial information"
@@ -514,7 +519,7 @@ def ProcessCommands():
 
   models = [];
   modelsBrief = [];
-  
+
   modelInd = -1;
 
   cmdPrompt = "> ";
