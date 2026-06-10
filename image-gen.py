@@ -3,6 +3,7 @@ import json;
 import argparse;
 import base64;
 import os;
+import copy;
 
 from rich         import box, print_json;
 from rich.table   import Table;
@@ -317,12 +318,22 @@ def GenerateImage(prompt : str, modelName : str):
     jsonPayload["messages"][0]["content"] = prompt;
 
   jsonToSend = json.dumps(jsonPayload);
+  payloadCopy = copy.deepcopy(jsonPayload);
+
+  if isinstance(payloadCopy["messages"][0]["content"], list):
+    d = payloadCopy["messages"][0]["content"][1];
+    imgUrl = d["image_url"]["url"];
+    if "data:image" in imgUrl:
+      imgUrl = f"{ d['image_url']['url'][:50] }...";
+    d["image_url"]["url"] = imgUrl;
+
+  jsonToPrint = json.dumps(payloadCopy);
 
   while True:
     print();
     print("Request to send:");
     print("-"*80);
-    print_json(jsonToSend);
+    print_json(jsonToPrint);
     print("-"*80);
     print();
     reply = input(f"Proceed? (y/n): ").strip().lower();
