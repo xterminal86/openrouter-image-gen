@@ -5,10 +5,11 @@ import base64;
 import os;
 import copy;
 
-from rich         import box, print_json;
-from rich.table   import Table;
-from rich.console import Console;
-from datetime     import datetime;
+from rich           import box, print_json;
+from rich.table     import Table;
+from rich.console   import Console;
+from datetime       import datetime;
+from prompt_toolkit import PromptSession;
 
 console = Console();
 
@@ -528,6 +529,15 @@ def ProcessCommands():
     , "/url [<IMAGE URL>]" : "Set /reset reference image URL"
   };
 
+  sortedKeys = sorted(cmds.keys());
+
+  cmdsSorted = {};
+
+  for key in sortedKeys:
+    cmdsSorted[key] = cmds[key];
+
+  cmds = cmdsSorted;
+
   models = [];
   modelsBrief = [];
 
@@ -539,9 +549,11 @@ def ProcessCommands():
   console.print("/help to display help.");
   console.print("/exit to exit.");
 
+  promptSession = PromptSession();
+
   try:
     while True:
-      inLine = input(cmdPrompt).strip();
+      inLine = promptSession.prompt(cmdPrompt).strip();
 
       spl = inLine.split(maxsplit=1);
 
@@ -621,7 +633,7 @@ def ProcessCommands():
           console.print(table);
         else:
           console.print("Invalid command", style="bold red");
-  except EOFError:
+  except (EOFError, KeyboardInterrupt):
     console.print();
     exit(1);
 
