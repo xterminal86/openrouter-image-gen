@@ -2,6 +2,7 @@ import requests;
 import json;
 import argparse;
 import base64;
+import io;
 import os;
 import copy;
 
@@ -10,6 +11,7 @@ from rich.table     import Table;
 from rich.console   import Console;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
+from PIL            import Image;
 
 console = Console();
 
@@ -34,32 +36,43 @@ ReferenceImage = "";
 
 ################################################################################
 
-def EncodeImage(fname : str) -> str:
-  extensionMap = {
-    "jpeg" : "jpeg",
-    "jpg"  : "jpeg",
-    "png"  : "png"
-  };
-  spl = fname.rsplit(".", maxsplit=1);
-  if len(spl) == 1:
-    console.print(
-      "File must have valid extension (png or jpg)!",
-      style="bold red"
-    );
-    return "";
-  if spl[1] not in extensionMap.keys():
-    console.print("Only jpg or png files are supported!", style="bold red");
-    return "";
-  extension = extensionMap[ spl[1] ];
+def Image2Png(fname : str) -> str:
   try:
-    imageBytes = bytes();
-    with open(fname, "rb") as f:
-      imageBytes = base64.b64encode(f.read());
-    return f"data:image/{ extension };base64,{ imageBytes.decode('utf-8') }";
+    with Image.open(fname) as f:
+      buffer = io.BytesIO();
+      f.save(buffer, format="PNG");
+      pngBytes = buffer.getvalue();
+      b64img = base64.b64encode(pngBytes).decode('utf-8');
+      return b64img;
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
+  
+################################################################################
 
+def EncodeImage(fname : str) -> str:
+  spl = fname.rsplit(".", maxsplit=1);
+  extension = spl[1];
+  pngOrJpg = (extension == "png" or extension == "jpeg" or extension == "jpg");
+  try:
+    if pngOrJpg:
+      imageBytes = bytes();
+      with open(fname, "rb") as f:
+        imageBytes = base64.b64encode(f.read());
+      imgDataMarkerByExtension = {
+        "png"  : "png",
+        "jpeg" : "jpeg",
+        "jpg"  : "jpeg"
+      };
+      return f"data:image/{ imgDataMarkerByExtension[extension] };base64,{ imageBytes.decode('utf-8') }";
+    else:
+      console.print("Converting to png in memory...", style="bold white");
+      imageBase64 = Image2Png(fname);
+      return f"data:image/png;base64,{ imageBase64 }";
+  except Exception as e:
+    console.print(f"{ e }", style="bold red");
+    return "";
+    
 ################################################################################
 
 def ListModels(silent : bool = False) -> list:
@@ -341,7 +354,7 @@ def GenerateImage(prompt : str, modelName : str):
     if reply in ("y", "yes"):
       break;
     elif reply in ("n", "no"):
-      console.print("Aight den, not doing shit.", style="bold cyan");
+      console.print("Aight den, not doing shit.", style="bold white");
       if not CommandMode:
         exit(1);
       else:
