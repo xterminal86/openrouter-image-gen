@@ -1,9 +1,6 @@
 .key
 .idea/
 venv/
-generated/
-raw/
-errors/
 *.txt
 !requirements.txt
 *.png
