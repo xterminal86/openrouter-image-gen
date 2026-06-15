@@ -260,7 +260,8 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
       pd.ReferenceImage = (
         EncodeImage(args) if (command == "/image") else args
       );
-      console.print(f"Reference image set: '{ args }'", style="bold white");
+      if pd.ReferenceImage:
+        console.print(f"Reference image set: '{ args }'", style="bold white");
   elif (command == "/credits"):
     DisplayCredits(pd.API_KEY);
   elif (command == "/brief"):

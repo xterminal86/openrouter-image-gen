@@ -30,6 +30,9 @@ def Image2Png(fname : str) -> str:
 
 def EncodeImage(fname : str) -> str:
   spl = fname.rsplit(".", maxsplit=1);
+  if len(spl) == 1:
+    console.print("Cannot split by extension!", style="bold red");
+    return "";
   extension = spl[1];
   pngOrJpg = (extension == "png" or extension == "jpeg" or extension == "jpg");
   try:
