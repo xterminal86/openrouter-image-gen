@@ -2,84 +2,43 @@ import requests;
 import json;
 import argparse;
 import base64;
-import io;
 import os;
 import copy;
 
 from rich           import box, print_json;
 from rich.table     import Table;
-from rich.console   import Console;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
-from PIL            import Image;
 
-from utils import TimestampToYMD;
+from utils  import TimestampToYMD, EncodeImage, console;
+from common import DisplayCredits;
 
-console = Console();
+class ProgramDataClass:
+  MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
+  GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
 
-API_KEY = "";
+  def __init__(self):
+    self.API_KEY = "";
 
-try:
-  with open(".key") as f:
-    API_KEY = f.readline().rstrip();
-except Exception as e:
-  console.print(
-    "OpenRouter API key not found! Put it inside .key file.",
-    style="bold red"
-  );
-  exit(1);
+    try:
+      with open(".key") as f:
+        self.API_KEY = f.readline().rstrip();
+    except Exception as e:
+      console.print(
+        "OpenRouter API key not found! Put it inside .key file.",
+        style="bold red"
+      );
+      exit(1);
 
-MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
-GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
-CREDITS_URL     = "https://openrouter.ai/api/v1/credits";
-
-CommandMode = False;
-ReferenceImage = "";
-
-################################################################################
-
-def Image2Png(fname : str) -> str:
-  try:
-    with Image.open(fname) as f:
-      buffer = io.BytesIO();
-      f.save(buffer, format="PNG");
-      pngBytes = buffer.getvalue();
-      b64img = base64.b64encode(pngBytes).decode('utf-8');
-      return b64img;
-  except Exception as e:
-    console.print(f"{ e }", style="bold red");
-    return "";
+    self.CommandMode = False;
+    self.ReferenceImage = "";
+    self.Models = [];
 
 ################################################################################
 
-def EncodeImage(fname : str) -> str:
-  spl = fname.rsplit(".", maxsplit=1);
-  extension = spl[1];
-  pngOrJpg = (extension == "png" or extension == "jpeg" or extension == "jpg");
+def ListModels(silent : bool, pd : ProgramDataClass) -> list:
   try:
-    if pngOrJpg:
-      imageBytes = bytes();
-      with open(fname, "rb") as f:
-        imageBytes = base64.b64encode(f.read());
-      imgDataMarkerByExtension = {
-        "png"  : "png",
-        "jpeg" : "jpeg",
-        "jpg"  : "jpeg"
-      };
-      return f"data:image/{ imgDataMarkerByExtension[extension] };base64,{ imageBytes.decode('utf-8') }";
-    else:
-      console.print("Converting to png in memory...", style="bold white");
-      imageBase64 = Image2Png(fname);
-      return f"data:image/png;base64,{ imageBase64 }";
-  except Exception as e:
-    console.print(f"{ e }", style="bold red");
-    return "";
-
-################################################################################
-
-def ListModels(silent : bool = False) -> list:
-  try:
-    response = requests.get(url=MODELS_LIST_URL);
+    response = requests.get(url=pd.MODELS_LIST_URL);
     result = response.json();
 
     table = Table(title="Available models", show_lines=True);
@@ -207,46 +166,11 @@ def DisplayModelsBrief(models : list):
 
 ################################################################################
 
-def DisplayCredits():
-  response = requests.get(
-    url=CREDITS_URL,
-    headers={
-      "Authorization": f"Bearer { API_KEY }",
-    }
-  );
-
-  if (response.status_code != requests.codes.ok):
-    console.print(
-      "Got error while trying to get credits information:",
-      style="bold red"
-    );
-    print_json(json.dumps(response.json()));
-    exit(1);
-
-  result = response.json();
-
-  table = Table(title="Credits", show_lines=True);
-
-  table.add_column("Total", justify="center", style="bold green");
-  table.add_column("Used",  justify="center", style="bold red");
-  table.add_column("Left",  justify="center", style="bold yellow");
-
-  totalCreds = result.get("data", {}).get("total_credits", -1);
-  totalUsage = result.get("data", {}).get("total_usage", -1);
-
-  credsLeft = totalCreds - totalUsage;
-
-  table.add_row(f"{ totalCreds }", f"{ totalUsage }", f"{ credsLeft }");
-
-  console.print(table);
-
-################################################################################
-
-def GetModelsListBrief() -> list:
+def GetModelsListBrief(pd : ProgramDataClass) -> list:
   res = [];
 
   try:
-    response = requests.get(url=MODELS_LIST_URL);
+    response = requests.get(url=pd.MODELS_LIST_URL);
     result = response.json();
 
     lst = result["data"];
@@ -301,7 +225,7 @@ def ChooseModel(models : list) -> int:
 
 ################################################################################
 
-def GenerateImage(prompt : str, modelName : str):
+def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
   jsonPayload = {
       "model": modelName
     , "messages": [
@@ -321,12 +245,11 @@ def GenerateImage(prompt : str, modelName : str):
     }
   };
 
-  global ReferenceImage;
-  if ReferenceImage:
+  if pd.ReferenceImage:
     toAppend = {
       "type" : "image_url",
       "image_url" : {
-        "url" : ReferenceImage
+        "url" : pd.ReferenceImage
       }
     };
     jsonPayload["messages"][0]["content"].append(toAppend);
@@ -357,7 +280,7 @@ def GenerateImage(prompt : str, modelName : str):
       break;
     elif reply in ("n", "no"):
       console.print("Aight den, not doing shit.", style="bold white");
-      if not CommandMode:
+      if not pd.CommandMode:
         exit(1);
       else:
         return;
@@ -367,9 +290,9 @@ def GenerateImage(prompt : str, modelName : str):
   console.print("Reaching out to OpenRouter...", style="cyan");
 
   response = requests.post(
-    url=GENERATION_URL,
+    url=pd.GENERATION_URL,
     headers={
-      "Authorization": f"Bearer { API_KEY }",
+      "Authorization": f"Bearer { pd.API_KEY }",
       "Content-Type": "application/json",
     },
     data=jsonToSend
@@ -379,7 +302,7 @@ def GenerateImage(prompt : str, modelName : str):
     console.print("Got error:", style="bold red");
     print_json(json.dumps(response.json()));
 
-    if not CommandMode:
+    if not pd.CommandMode:
       exit(1);
     else:
       return;
@@ -393,9 +316,6 @@ def GenerateImage(prompt : str, modelName : str):
 
   n = datetime.now().replace(microsecond=0);
   ns = n.strftime("%Y-%m-%d-%H-%M-%S");
-
-  if not os.path.exists("raw"):
-    os.mkdir("raw");
 
   os.makedirs("generated", exist_ok=True);
   os.makedirs("raw",       exist_ok=True);
@@ -529,9 +449,7 @@ def DisplayModel(modelInd : int, model : dict):
 
 ################################################################################
 
-def ProcessCommands():
-  global ReferenceImage;
-
+def ProcessCommands(pd : ProgramDataClass):
   cmds = {
       "/brief" : "Display models brief information"
     , "/credits" : "Display financial information"
@@ -575,6 +493,11 @@ def ProcessCommands():
       if spl:
         command = spl[0];
 
+        args = "";
+
+        if len(spl) >= 2:
+          args = spl[1];
+
         if command == "/exit":
           break;
         elif command == "/info":
@@ -582,9 +505,9 @@ def ProcessCommands():
             console.print("Need model index!", style="bold red");
           else:
             try:
-              modelInd = int(spl[1]);
+              modelInd = int(args);
               if not models:
-                models = ListModels(True);
+                models = ListModels(True, pd);
               modelInd -= 1;
               if (modelInd < 0) or (modelInd >= len(models)):
                 console.print("Invalid model index", style="bold red");
@@ -593,18 +516,18 @@ def ProcessCommands():
             except ValueError as e:
               console.print("Not a number", style="bold red");
         elif command == "/credits":
-          DisplayCredits();
+          DisplayCredits(pd.API_KEY);
         elif command == "/models":
-          models = ListModels();
+          models = ListModels(False, pd);
         elif command == "/brief":
           if not modelsBrief:
-            modelsBrief = GetModelsListBrief();
+            modelsBrief = GetModelsListBrief(pd);
           DisplayModelsBrief(modelsBrief);
         elif command == "/select":
           try:
-            modelInd = int(spl[1]);
+            modelInd = int(args);
             if not models:
-              models = ListModels(True);
+              models = ListModels(True, pd);
             modelInd -= 1;
 
             if (modelInd < 0) or (modelInd >= len(models)):
@@ -615,25 +538,22 @@ def ProcessCommands():
 
           except ValueError as e:
             console.print("Not a number", style="bold red");
-        elif command == "/image":
+        elif (command == "/image") or (command == "/url"):
           if len(spl) == 1:
+            pd.ReferenceImage = "";
             console.print("Reference image is reset.", style="bold white");
-            ReferenceImage = "";
           else:
-            ReferenceImage = EncodeImage(spl[1]);
-        elif command == "/url":
-          if len(spl) == 1:
-            console.print("Reference image is reset.", style="bold white");
-            ReferenceImage = "";
-          else:
-            ReferenceImage = spl[1];
+            pd.ReferenceImage = (
+              EncodeImage(args) if (command == "/image") else args
+            )
+            console.print(f"Reference image set: '{ args }'", style="bold white");
         elif command == "/prompt":
           try:
             prompt = spl[1];
             if modelInd == -1:
               console.print("Select model first", style="bold red");
             else:
-              GenerateImage(prompt, models[modelInd]["id"]);
+              GenerateImage(prompt, models[modelInd]["id"], pd);
           except IndexError as e:
             console.print("Empty prompt string", style="bold red");
         elif command == "/help":
@@ -655,6 +575,8 @@ def ProcessCommands():
 ################################################################################
 
 def main():
+  pd = ProgramDataClass();
+
   parser = argparse.ArgumentParser(
     epilog="Runs in command mode if started without arguments."
   );
@@ -691,24 +613,23 @@ def main():
       exit(1);
 
   if (args.models):
-    ListModels();
+    ListModels(False, pd);
   elif (prompt):
-    models = GetModelsListBrief();
-    DisplayModelsBrief(models);
-    DisplayCredits();
-    choice = ChooseModel(models);
+    pd.Models = GetModelsListBrief(pd);
+    DisplayModelsBrief(pd.Models);
+    DisplayCredits(pd.API_KEY);
+    choice = ChooseModel(pd.Models);
     if (choice == -1):
       exit(1);
     console.print("Using model: ", end="");
     console.print(
-      f"{ models[choice][0] }",
+      f"{ pd.Models[choice][0] }",
       style="bold bright_white"
     );
-    GenerateImage(prompt, models[choice][0]);
+    GenerateImage(prompt, pd.Models[choice][0], pd);
   else:
-    global CommandMode;
-    CommandMode = True;
-    ProcessCommands();
+    pd.CommandMode = True;
+    ProcessCommands(pd);
 
 ################################################################################
 
