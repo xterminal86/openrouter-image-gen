@@ -1,5 +1,6 @@
 .key
 .idea/
+__pycache__/
 venv/
 *.txt
 !requirements.txt

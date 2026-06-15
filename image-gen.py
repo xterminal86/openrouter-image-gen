@@ -13,6 +13,8 @@ from datetime       import datetime;
 from prompt_toolkit import PromptSession;
 from PIL            import Image;
 
+from utils import TimestampToYMD;
+
 console = Console();
 
 API_KEY = "";
@@ -47,7 +49,7 @@ def Image2Png(fname : str) -> str:
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
-  
+
 ################################################################################
 
 def EncodeImage(fname : str) -> str:
@@ -72,7 +74,7 @@ def EncodeImage(fname : str) -> str:
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
-    
+
 ################################################################################
 
 def ListModels(silent : bool = False) -> list:
@@ -117,7 +119,7 @@ def ListModels(silent : bool = False) -> list:
     for item in lst:
       modelName = item["id"];
       modelDesc = item["description"];
-      dateCreated = datetime.fromtimestamp(item["created"]).strftime("%Y-%m-%d");
+      dateCreated = TimestampToYMD(item["created"]);
 
       modelPricing = item["pricing"];
 
@@ -509,7 +511,7 @@ def DisplayModel(modelInd : int, model : dict):
     for k,v in model["pricing"].items():
       pricing.append(f"{ k } = { v }");
     pricingStr = " | ".join(pricing);
-    dateCreated = datetime.fromtimestamp(model["created"]).strftime("%Y-%m-%d");
+    dateCreated = TimestampToYMD(model["created"]);
     descStr = model["description"];
   else:
     pricingStr = "0";
