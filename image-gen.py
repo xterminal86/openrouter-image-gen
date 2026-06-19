@@ -10,7 +10,7 @@ from rich.table     import Table;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
 
-from utils  import TimestampToYMD, EncodeImage, console;
+from utils  import RenderCmdPrompt, TimestampToYMD, EncodeImage, console;
 from common import DisplayCredits;
 
 class ProgramDataClass:
@@ -364,6 +364,16 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
             style="bold bright_yellow"
           );
         imageCount += 1;
+
+      if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
+        console.print("Model used: ", end="");
+        console.print(f"{ result['model'] }", style="bold cyan");
+
+      console.print("Cost:");
+      console.print("-"*80);
+      print_json(json.dumps(result["usage"]));
+      console.print("-"*80);
+      console.print();
     else:
       console.print(
         "Received no images - it might've fallen back to text generation.",
@@ -374,16 +384,6 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       with open(fname, "w") as f:
         f.write(fullResponse);
       console.print(f"Written { fname }");
-
-    if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
-      console.print("Model used: ", end="");
-      console.print(f"{ result['model'] }", style="bold cyan");
-
-    console.print("Cost:");
-    console.print("-"*80);
-    print_json(json.dumps(result["usage"]));
-    console.print("-"*80);
-    console.print();
 
 ################################################################################
 
@@ -476,16 +476,19 @@ def ProcessCommands(pd : ProgramDataClass):
 
   modelInd = -1;
 
-  cmdPrompt = "> ";
-
   console.print("Starting command mode.", style="bold white");
   console.print("/help to display help.");
   console.print("/exit to exit.");
 
   promptSession = PromptSession();
 
+  inModel = "";
+  inImage = "";
+
   try:
     while True:
+      cmdPrompt = RenderCmdPrompt(inModel, inImage);
+
       inLine = promptSession.prompt(cmdPrompt).strip();
 
       spl = inLine.split(maxsplit=1);
@@ -534,19 +537,23 @@ def ProcessCommands(pd : ProgramDataClass):
               console.print("Invalid model index", style="bold red");
             else:
               console.print(f"Selected model '{ models[modelInd]['id'] }'");
-              cmdPrompt = f"{ models[modelInd]['id'] } > ";
-
+              inModel = models[modelInd]['id'];
           except ValueError as e:
             console.print("Not a number", style="bold red");
         elif (command == "/image") or (command == "/url"):
           if len(spl) == 1:
             pd.ReferenceImage = "";
             console.print("Reference image is reset.", style="bold white");
+            inImage = "";
           else:
             pd.ReferenceImage = (
               EncodeImage(args) if (command == "/image") else args
             )
-            console.print(f"Reference image set: '{ args }'", style="bold white");
+            if pd.ReferenceImage:
+              console.print(
+                f"Reference image set: '{ args }'", style="bold white"
+              );
+              inImage = args;
         elif command == "/prompt":
           try:
             prompt = spl[1];

@@ -53,3 +53,11 @@ def EncodeImage(fname : str) -> str:
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
+
+################################################################################
+
+def RenderCmdPrompt(inModel : str, inImg : str) -> str:
+  cmdPromptTemplate = "{model} | {image} > ";
+  m   = "(none)" if not inModel else inModel;
+  img = "(none)" if not inImg else inImg.rsplit("/", maxsplit=1)[-1];
+  return cmdPromptTemplate.format(model=m, image=img);

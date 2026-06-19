@@ -8,7 +8,7 @@ from rich.prompt    import Prompt;
 from prompt_toolkit import PromptSession;
 from datetime       import datetime;
 
-from utils  import TimestampToYMD, EncodeImage, console;
+from utils  import RenderCmdPrompt, TimestampToYMD, EncodeImage, console;
 from common import DisplayCredits;
 
 class ProgramDataClass:
@@ -16,10 +16,14 @@ class ProgramDataClass:
   GENERATION_URL  = "https://openrouter.ai/api/v1/videos";
 
   def __init__(self):
-    self.CmdPrompt = "> ";
+    self.CmdPrompt = "";
     self.ModelInd = -1;
     self.Models = [];
     self.ReferenceImage = "";
+
+    # For command prompt.
+    self.InModel = "";
+    self.InImage = "";
 
     self.API_KEY = "";
 
@@ -254,6 +258,7 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
     return True;
   elif (command == "/image") or (command == "/url"):
     if not args:
+      pd.InImage = "";
       pd.ReferenceImage = "";
       console.print("Reference image is reset.", style="bold white");
     else:
@@ -262,6 +267,8 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
       );
       if pd.ReferenceImage:
         console.print(f"Reference image set: '{ args }'", style="bold white");
+        pd.InImage = args;
+
   elif (command == "/credits"):
     DisplayCredits(pd.API_KEY);
   elif (command == "/brief"):
@@ -283,7 +290,8 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
           console.print(
             f"Selected model { pd.Models[ pd.ModelInd ]['modelId'] }"
           );
-          pd.CmdPrompt = f"{ pd.Models[ pd.ModelInd ]['modelId'] } > ";
+          pd.InModel = pd.Models[ pd.ModelInd ]['modelId'];
+
   elif (command == "/prompt"):
     prompt = args;
 
@@ -370,6 +378,9 @@ def main():
 
   try:
     while not shouldExit:
+      programData.CmdPrompt = RenderCmdPrompt(programData.InModel,
+                                              programData.InImage);
+
       inLine = promptSession.prompt(programData.CmdPrompt).strip();
 
       if inLine:
