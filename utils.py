@@ -49,7 +49,7 @@ def EncodeImage(fname : str) -> str:
     else:
       console.print("Converting to png in memory...", style="bold white");
       imageBase64 = Image2Png(fname);
-      return f"data:image/png;base64,{ imageBase64 }";
+      return f"data:image/png;base64,{ imageBase64 }" if imageBase64 else "";
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";

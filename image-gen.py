@@ -459,7 +459,7 @@ def ProcessCommands(pd : ProgramDataClass):
     , "/models" : "Display list of available models"
     , "/prompt <TEXT>" : "Prepare request to image generation"
     , "/select <MODEL INDEX>" : "Select model from the /models list"
-    , "/url [<IMAGE URL>]" : "Set /reset reference image URL"
+    , "/url [<IMAGE URL>]" : "Set / reset reference image URL"
   };
 
   sortedKeys = sorted(cmds.keys());
