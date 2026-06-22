@@ -312,8 +312,21 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       exit(1);
     else:
       return;
-
-  result = response.json();
+  
+  result = None;
+  
+  try:
+    result = response.json();
+  except Exception as e:
+    console.print(
+      "Error while trying to deserialize response object as JSON!",
+      style="bold red"
+    );
+    console.print(f"{ e }");
+    console.print("-"*80);
+    console.print(response.text);
+    console.print("-"*80);
+    return;
 
   if "error" in result.keys():
     console.print("Got error:", style="bold red");
