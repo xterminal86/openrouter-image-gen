@@ -33,6 +33,12 @@ class ProgramDataClass:
     self.CommandMode = False;
     self.ReferenceImage = "";
     self.Models = [];
+    self.ModelsBrief = [];
+    self.ModelInd = -1;
+
+    # For displaying in command prompt.
+    self.InModel = "";
+    self.InImage = "";
 
 ################################################################################
 
@@ -447,47 +453,188 @@ def DisplayModel(modelInd : int, model : dict):
 
   console.print(table);
 
+CommandHandlers = {}
+
+AllCommands = {
+    "/brief"   : [
+      "/brief", "Display models brief information"
+  ]
+  , "/credits" : [
+    "/credits", "Display financial information"
+  ]
+  , "/exit" : [
+    "/exit", "Nuff said"
+  ]
+  , "/help" : [
+    "/help", "Display this"
+  ]
+  , "/image" : [
+    "/image [<PATH TO FILE>]", "Set / reset base64 encoded image file"
+  ]
+  , "/info" : [
+    "/info <MODEL INDEX>", "Display information about model no. <MODEL INDEX>"
+  ]
+  , "/models" : [
+    "/models", "Display list of available models"
+  ]
+  , "/prompt" : [
+    "/prompt <TEXT>", "Prepare request to image generation"
+  ]
+  , "/select" : [
+    "/select <MODEL INDEX>", "Select model from the /models list"
+  ]
+  , "/url" : [
+    "/url [<IMAGE URL>]", "Set / reset reference image URL"
+  ]
+};
+
+################################################################################
+
+def Command(name : str):
+  def _decorator(f):
+    f.FunctionName = name;
+    CommandHandlers[name] = f;
+    return f;
+  return _decorator;
+
+################################################################################
+
+@Command("/help")
+def ProcessHelp(args : str, pd : ProgramDataClass) -> bool:
+  table = Table(title="Available commands", show_lines=False);
+
+  table.add_column("Command", style="bold cyan");
+  table.add_column("Description", style="bold white");
+
+  sortedKeys = sorted(CommandHandlers.keys());
+
+  for k in sortedKeys:
+    commandHelp = AllCommands[k][0] if k in AllCommands.keys() else k;
+    helpText = AllCommands[k][1] if k in AllCommands.keys() else "(no help)";
+    table.add_row(commandHelp, helpText);
+
+  console.print(table);
+
+  return False;
+
+################################################################################
+
+@Command("/info")
+def ProcessInfo(args : str, pd : ProgramDataClass) -> bool:
+  try:
+    if not args:
+      console.print("Need model index!", style="bold red");
+    else:
+      pd.ModelInd = int(args);
+      if not pd.Models:
+        pd.Models = ListModels(True, pd);
+      pd.ModelInd -= 1;
+      if (pd.ModelInd < 0) or (pd.ModelInd >= len(pd.Models)):
+        console.print("Invalid model index", style="bold red");
+      else:
+        DisplayModel(pd.ModelInd, pd.Models[pd.ModelInd]);
+  except ValueError as _:
+    console.print("Not a number!", style="bold red");
+
+  return False;
+
+################################################################################
+
+@Command("/credits")
+def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+  DisplayCredits(pd.API_KEY);
+  return False;
+
+################################################################################
+
+@Command("/models")
+def ProcessModels(args : str, pd : ProgramDataClass) -> bool:
+  pd.Models = ListModels(False, pd);
+  return False;
+
+################################################################################
+
+@Command("/brief")
+def ProcessBrief(args : str, pd : ProgramDataClass) -> bool:
+  if not pd.ModelsBrief:
+    pd.ModelsBrief = GetModelsListBrief(pd);
+  DisplayModelsBrief(pd.ModelsBrief);
+  return False;
+
+################################################################################
+
+@Command("/select")
+def ProcessSelect(args : str, pd : ProgramDataClass) -> bool:
+  try:
+    pd.ModelInd = int(args);
+  except ValueError as e:
+    console.print("Not a number", style="bold red");
+    return False;
+
+  if not pd.Models:
+    pd.Models = ListModels(True, pd);
+
+  pd.ModelInd -= 1;
+
+  if (pd.ModelInd < 0) or (pd.ModelInd >= len(pd.Models)):
+    console.print("Invalid model index", style="bold red");
+  else:
+    console.print(f"Selected model '{ pd.Models[pd.ModelInd]['id'] }'");
+    pd.InModel = pd.Models[pd.ModelInd]['id'];
+
+  return False;
+
+################################################################################
+
+@Command("/image")
+@Command("/url")
+def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
+  if not args:
+    pd.ReferenceImage = "";
+    console.print("Reference image is reset.", style="bold white");
+    pd.InImage = "";
+  else:
+    pd.ReferenceImage = (
+      EncodeImage(args) if (ProcessImage.FunctionName == "/image") else args
+    )
+    if pd.ReferenceImage:
+      console.print(
+        f"Reference image set: '{ args }'", style="bold white"
+      );
+      pd.InImage = args;
+  return False;
+
+################################################################################
+
+@Command("/prompt")
+def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
+  prompt = args;
+  if not prompt:
+    console.print("Empty prompt string!", style="bold red");
+    return False;
+
+  if pd.ModelInd == -1:
+    console.print("Select model first!", style="bold red");
+    return False;
+  else:
+    GenerateImage(prompt, pd.Models[pd.ModelInd]["id"], pd);
+
+  return False;
+
 ################################################################################
 
 def ProcessCommands(pd : ProgramDataClass):
-  cmds = {
-      "/brief" : "Display models brief information"
-    , "/credits" : "Display financial information"
-    , "/exit" : "Nuff said"
-    , "/image [<PATH TO FILE>]" : "Set / reset base64 encoded image file"
-    , "/info <MODEL INDEX>" : "Display information about model no. <MODEL INDEX>"
-    , "/models" : "Display list of available models"
-    , "/prompt <TEXT>" : "Prepare request to image generation"
-    , "/select <MODEL INDEX>" : "Select model from the /models list"
-    , "/url [<IMAGE URL>]" : "Set / reset reference image URL"
-  };
-
-  sortedKeys = sorted(cmds.keys());
-
-  cmdsSorted = {};
-
-  for key in sortedKeys:
-    cmdsSorted[key] = cmds[key];
-
-  cmds = cmdsSorted;
-
-  models = [];
-  modelsBrief = [];
-
-  modelInd = -1;
-
   console.print("Starting command mode.", style="bold white");
   console.print("/help to display help.");
   console.print("/exit to exit.");
 
   promptSession = PromptSession();
 
-  inModel = "";
-  inImage = "";
+  shouldExit = False;
 
   try:
-    while True:
-      cmdPrompt = RenderCmdPrompt(inModel, inImage);
+    while not shouldExit:
+      cmdPrompt = RenderCmdPrompt(pd.InModel, pd.InImage);
 
       inLine = promptSession.prompt(cmdPrompt).strip();
 
@@ -501,78 +648,8 @@ def ProcessCommands(pd : ProgramDataClass):
         if len(spl) >= 2:
           args = spl[1];
 
-        if command == "/exit":
-          break;
-        elif command == "/info":
-          if len(spl) == 1:
-            console.print("Need model index!", style="bold red");
-          else:
-            try:
-              modelInd = int(args);
-              if not models:
-                models = ListModels(True, pd);
-              modelInd -= 1;
-              if (modelInd < 0) or (modelInd >= len(models)):
-                console.print("Invalid model index", style="bold red");
-              else:
-                DisplayModel(modelInd, models[modelInd]);
-            except ValueError as e:
-              console.print("Not a number", style="bold red");
-        elif command == "/credits":
-          DisplayCredits(pd.API_KEY);
-        elif command == "/models":
-          models = ListModels(False, pd);
-        elif command == "/brief":
-          if not modelsBrief:
-            modelsBrief = GetModelsListBrief(pd);
-          DisplayModelsBrief(modelsBrief);
-        elif command == "/select":
-          try:
-            modelInd = int(args);
-            if not models:
-              models = ListModels(True, pd);
-            modelInd -= 1;
-
-            if (modelInd < 0) or (modelInd >= len(models)):
-              console.print("Invalid model index", style="bold red");
-            else:
-              console.print(f"Selected model '{ models[modelInd]['id'] }'");
-              inModel = models[modelInd]['id'];
-          except ValueError as e:
-            console.print("Not a number", style="bold red");
-        elif (command == "/image") or (command == "/url"):
-          if len(spl) == 1:
-            pd.ReferenceImage = "";
-            console.print("Reference image is reset.", style="bold white");
-            inImage = "";
-          else:
-            pd.ReferenceImage = (
-              EncodeImage(args) if (command == "/image") else args
-            )
-            if pd.ReferenceImage:
-              console.print(
-                f"Reference image set: '{ args }'", style="bold white"
-              );
-              inImage = args;
-        elif command == "/prompt":
-          try:
-            prompt = spl[1];
-            if modelInd == -1:
-              console.print("Select model first", style="bold red");
-            else:
-              GenerateImage(prompt, models[modelInd]["id"], pd);
-          except IndexError as e:
-            console.print("Empty prompt string", style="bold red");
-        elif command == "/help":
-          table = Table(title="Available commands", show_lines=False);
-
-          table.add_column("Command", style="bold cyan");
-          table.add_column("Description", style="bold white");
-
-          for k,v in cmds.items():
-            table.add_row(k, v);
-
-          console.print(table);
+        if command in CommandHandlers.keys():
+          shouldExit = CommandHandlers[command](args, pd);
         else:
           console.print("Invalid command", style="bold red");
   except (EOFError, KeyboardInterrupt):
