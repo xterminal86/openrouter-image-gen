@@ -242,6 +242,172 @@ def PrepareRequest(prompt : str, pd : ProgramDataClass) -> str:
 
   return json.dumps(dict);
 
+CommandHandlers = {};
+
+################################################################################
+
+def Command(name : str):
+  def _decorator(f):
+    f.FunctionName = name;
+    CommandHandlers[name] = f;
+    return f;
+  return _decorator;
+
+################################################################################
+
+@Command("/exit")
+@Command("/quit")
+def ProcessQuit(args : str, pd : ProgramDataClass) -> bool:
+  return True;
+
+################################################################################
+
+@Command("/image")
+def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
+  if not args:
+    pd.InImage = "";
+    pd.ReferenceImage = "";
+    console.print("Reference image is reset.", style="bold white");
+  else:
+    pd.ReferenceImage = (
+      EncodeImage(args) if (ProcessImage.FunctionName == "/image") else args
+    );
+    if pd.ReferenceImage:
+      console.print(f"Reference image set: '{ args }'", style="bold white");
+      pd.InImage = args;
+
+  return False;
+
+################################################################################
+
+@Command("/credits")
+def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+  DisplayCredits(pd.API_KEY);
+  return False;
+
+################################################################################
+
+@Command("/brief")
+def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+  DisplayModelsBrief(pd.Models);
+  return False;
+
+################################################################################
+
+@Command("/models")
+def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+  DisplayModels(pd.Models);
+  return False;
+
+################################################################################
+
+@Command("/select")
+def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+  if not args:
+    console.print("Need model index!", style="bold red");
+    return False;
+
+  try:
+    int(args);
+  except ValueError as _:
+    console.print("Invalid model index!", style="bold red");
+    return False;
+
+  pd.ModelInd = int(args);
+  pd.ModelInd += -1;
+  if (pd.ModelInd < 0) or (pd.ModelInd >= len(pd.Models)):
+    console.print("Invalid model index!", style="bold red");
+  else:
+    console.print(
+      f"Selected model { pd.Models[ pd.ModelInd ]['modelId'] }"
+    );
+    pd.InModel = pd.Models[ pd.ModelInd ]['modelId'];
+
+  return False;
+
+################################################################################
+
+@Command("/prompt")
+def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
+  prompt = args;
+
+  if pd.ModelInd == -1:
+    console.print("Select model first!", style="bold red");
+    return False;
+
+  if not prompt:
+    console.print("Prompt string is empty!", style="bold red");
+    return False;
+
+  try:
+    req = PrepareRequest(prompt, pd);
+    toPrint = json.loads(req);
+    refBlock = toPrint.get("input_references", {});
+    if refBlock:
+      imgRef = refBlock[0]["image_url"]["url"];
+      if "data:image" in imgRef:
+        imgRef = f"{ refBlock[0]['image_url']['url'][:50] }...";
+      toPrint["input_references"][0]["image_url"]["url"] = imgRef;
+    print_json(json.dumps(toPrint));
+    choice = Prompt.ask("Proceed? ", choices=["y", "Y", "n", "N"]);
+    choice = choice.lower();
+    if choice == "y":
+      response = requests.post(
+        pd.GENERATION_URL,
+        headers={
+          "Authorization": f"Bearer { pd.API_KEY }",
+          "Content-Type": "application/json",
+        },
+        json=json.loads(req)
+      );
+
+      result = response.json();
+      print_json(json.dumps(result));
+
+      if (response.status_code != requests.codes.accepted):
+        console.print("Got error:", style="bold red");
+      else:
+        jobId = result["id"];
+        pollingUrl = result["polling_url"];
+        console.print(f"Job submitted: '{ jobId }' -> { pollingUrl }");
+        while True:
+          pollResponse = requests.get(
+            url=pollingUrl,
+            headers={
+              "Authorization": f"Bearer { pd.API_KEY }"
+            }
+          );
+          status = pollResponse.json();
+          print(f"Status: { status['status'] }");
+
+          if status["status"] == "completed":
+            print_json(json.dumps(status));
+            counter = 1;
+            for vurl in status.get("unsigned_urls", []):
+              console.print(f"Video URL: { vurl }");
+              response = requests.get(
+                vurl,
+                headers={
+                  "Authorization": f"Bearer { pd.API_KEY }"
+              });
+              n = datetime.now().replace(microsecond=0);
+              ns = n.strftime("%Y-%m-%d-%H-%M-%S");
+              fname = f"generated/video_{ ns }_{ counter }.mp4";
+              with open(fname, "wb") as f:
+                f.write(response.content);
+              console.print(f"Written: '{ fname }'");
+              counter += 1;
+            break;
+          elif status["status"] == "failed":
+            print(f"Error: { status.get('error', 'Unknown error') }")
+            break;
+          console.print("Waiting 30 seconds...");
+          time.sleep(30);
+  except Exception as e:
+    console.print(f"{ e }");
+
+  return False;
+
 ################################################################################
 
 def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
@@ -254,116 +420,10 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
   if len(spl) >= 2:
     args = spl[1];
 
-  if (command == "/exit" or command == "/quit"):
-    return True;
-  elif (command == "/image") or (command == "/url"):
-    if not args:
-      pd.InImage = "";
-      pd.ReferenceImage = "";
-      console.print("Reference image is reset.", style="bold white");
-    else:
-      pd.ReferenceImage = (
-        EncodeImage(args) if (command == "/image") else args
-      );
-      if pd.ReferenceImage:
-        console.print(f"Reference image set: '{ args }'", style="bold white");
-        pd.InImage = args;
-
-  elif (command == "/credits"):
-    DisplayCredits(pd.API_KEY);
-  elif (command == "/brief"):
-    DisplayModelsBrief(pd.Models);
-  elif (command == "/models"):
-    DisplayModels(pd.Models);
-  elif (command == "/select"):
-    if not args:
-      console.print("Need model index!", style="bold red");
-    else:
-      if not args.isdigit():
-        console.print("Invalid model index!", style="bold red");
-      else:
-        pd.ModelInd = int(args);
-        pd.ModelInd += -1;
-        if (pd.ModelInd < 0) or (pd.ModelInd >= len(pd.Models)):
-          console.print("Invalid model index!", style="bold red");
-        else:
-          console.print(
-            f"Selected model { pd.Models[ pd.ModelInd ]['modelId'] }"
-          );
-          pd.InModel = pd.Models[ pd.ModelInd ]['modelId'];
-
-  elif (command == "/prompt"):
-    prompt = args;
-
-    if pd.ModelInd == -1:
-      console.print("Select model first!", style="bold red");
-    else:
-      if not prompt:
-        console.print("Prompt string is empty!", style="bold red");
-      else:
-        req = PrepareRequest(prompt, pd);
-        toPrint = json.loads(req);
-        refBlock = toPrint.get("input_references", {});
-        if refBlock:
-          imgRef = refBlock[0]["image_url"]["url"];
-          if "data:image" in imgRef:
-            imgRef = f"{ refBlock[0]['image_url']['url'][:50] }...";
-          toPrint["input_references"][0]["image_url"]["url"] = imgRef;
-        print_json(json.dumps(toPrint));
-        choice = Prompt.ask("Proceed? ", choices=["y", "Y", "n", "N"]);
-        coice = choice.lower();
-        if choice == "y":
-          response = requests.post(
-            pd.GENERATION_URL,
-            headers={
-              "Authorization": f"Bearer { pd.API_KEY }",
-              "Content-Type": "application/json",
-            },
-            json=json.loads(req)
-          );
-
-          result = response.json();
-          print_json(json.dumps(result));
-
-          if (response.status_code != requests.codes.accepted):
-            console.print("Got error:", style="bold red");
-          else:
-            jobId = result["id"];
-            pollingUrl = result["polling_url"];
-            console.print(f"Job submitted: '{ jobId }' -> { pollingUrl }");
-            while True:
-              pollResponse = requests.get(
-                url=pollingUrl,
-                headers={
-                  "Authorization": f"Bearer { pd.API_KEY }"
-                }
-              );
-              status = pollResponse.json();
-              print(f"Status: { status['status'] }");
-
-              if status["status"] == "completed":
-                print_json(json.dumps(status));
-                counter = 1;
-                for vurl in status.get("unsigned_urls", []):
-                  console.print(f"Video URL: { vurl }");
-                  response = requests.get(
-                    vurl,
-                    headers={
-                      "Authorization": f"Bearer { pd.API_KEY }"
-                  });
-                  n = datetime.now().replace(microsecond=0);
-                  ns = n.strftime("%Y-%m-%d-%H-%M-%S");
-                  fname = f"generated/video_{ ns }_{ counter }.mp4";
-                  with open(fname, "wb") as f:
-                    f.write(response.content);
-                  console.print(f"Written: '{ fname }'");
-                  counter += 1;
-                break;
-              elif status["status"] == "failed":
-                print(f"Error: { status.get('error', 'Unknown error') }")
-                break;
-              console.print("Waiting 30 seconds...");
-              time.sleep(30);
+  if command in CommandHandlers.keys():
+    return CommandHandlers[command](args, pd);
+  else:
+    console.print("Invalid command!", style="bold red");
 
   return False;
 

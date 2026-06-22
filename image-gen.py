@@ -623,6 +623,13 @@ def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
 
 ################################################################################
 
+@Command("/exit")
+@Command("/quit")
+def ProcessExit(args : str, pd : ProgramDataClass) -> bool:
+  return True;
+
+################################################################################
+
 def ProcessCommands(pd : ProgramDataClass):
   console.print("Starting command mode.", style="bold white");
   console.print("/help to display help.");
