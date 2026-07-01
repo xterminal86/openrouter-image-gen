@@ -308,7 +308,9 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         "Content-Type": "application/json",
       },
       data=jsonToSend,
-      timeout=240
+      # The "heaviest" model being riverflow pro generates image in about 
+      # 3 minutes. So 2 for read timeout should be enough.
+      timeout=(10, 240)
     );
     end = time.perf_counter();  
     timeSpent = end - start;   
@@ -319,6 +321,11 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
     wasError = True;
     console.print("Failed to perform request!", style="bold red");
     console.print(f"{ e }", style="bold red");
+    end = time.perf_counter();  
+    timeSpent = end - start;   
+    console.print(
+      f"Timeout after {timeSpent:.6f} seconds", style="bold red"
+    );  
     
   if wasError:
     if not pd.CommandMode:
