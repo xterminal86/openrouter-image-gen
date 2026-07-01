@@ -4,6 +4,7 @@ import argparse;
 import base64;
 import os;
 import copy;
+import time;
 
 from rich           import box, print_json;
 from rich.table     import Table;
@@ -295,15 +296,36 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
 
   console.print("Reaching out to OpenRouter...", style="cyan");
 
-  response = requests.post(
-    url=pd.GENERATION_URL,
-    headers={
-      "Authorization": f"Bearer { pd.API_KEY }",
-      "Content-Type": "application/json",
-    },
-    data=jsonToSend
-  );
-
+  start = time.perf_counter();
+  end = start;
+  wasError = False;
+  
+  try:
+    response = requests.post(
+      url=pd.GENERATION_URL,
+      headers={
+        "Authorization": f"Bearer { pd.API_KEY }",
+        "Content-Type": "application/json",
+      },
+      data=jsonToSend,
+      timeout=240
+    );
+    end = time.perf_counter();  
+    timeSpent = end - start;   
+    console.print(
+      f"Execution took {timeSpent:.6f} seconds", style="bold green"
+    );  
+  except Exception as e:
+    wasError = True;
+    console.print("Failed to perform request!", style="bold red");
+    console.print(f"{ e }", style="bold red");
+    
+  if wasError:
+    if not pd.CommandMode:
+      exit(1);
+    else:
+      return;
+      
   if (response.status_code != requests.codes.ok):
     console.print("Got error:", style="bold red");
     print_json(json.dumps(response.json()));
