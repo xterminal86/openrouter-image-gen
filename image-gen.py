@@ -6,12 +6,19 @@ import os;
 import copy;
 import time;
 
+from PIL            import Image;
 from rich           import box, print_json;
 from rich.table     import Table;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
 
-from utils  import RenderCmdPrompt, TimestampToYMD, EncodeImage, console;
+from utils  import (
+  RenderCmdPrompt,
+  TimestampToYMD,
+  EncodeImage,
+  console
+);
+
 from common import DisplayCredits;
 
 class ProgramDataClass:
@@ -299,7 +306,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
   start = time.perf_counter();
   end = start;
   wasError = False;
-  
+
   try:
     response = requests.post(
       url=pd.GENERATION_URL,
@@ -308,31 +315,31 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         "Content-Type": "application/json",
       },
       data=jsonToSend,
-      # The "heaviest" model being riverflow pro generates image in about 
-      # 3 minutes. So 2 for read timeout should be enough.
+      # The "heaviest" model being riverflow pro generates image in about
+      # 3 minutes. So 4 for read timeout should be enough.
       timeout=(10, 240)
     );
-    end = time.perf_counter();  
-    timeSpent = end - start;   
+    end = time.perf_counter();
+    timeSpent = end - start;
     console.print(
       f"Execution took {timeSpent:.6f} seconds", style="bold green"
-    );  
+    );
   except Exception as e:
     wasError = True;
     console.print("Failed to perform request!", style="bold red");
     console.print(f"{ e }", style="bold red");
-    end = time.perf_counter();  
-    timeSpent = end - start;   
+    end = time.perf_counter();
+    timeSpent = end - start;
     console.print(
       f"Timeout after {timeSpent:.6f} seconds", style="bold red"
-    );  
-    
+    );
+
   if wasError:
     if not pd.CommandMode:
       exit(1);
     else:
       return;
-      
+
   if (response.status_code != requests.codes.ok):
     console.print("Got error:", style="bold red");
     print_json(json.dumps(response.json()));
@@ -341,9 +348,9 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       exit(1);
     else:
       return;
-  
+
   result = None;
-  
+
   try:
     result = response.json();
   except Exception as e:
@@ -378,7 +385,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       imageCount = 1;
       for image in message["images"]:
         output = image["image_url"]["url"];
-        metadata, encoded_image = output.split(",", 1);
+        metadata, encodedImage = output.split(",", 1);
         print(f"Got { metadata }");
         extension = None;
         if ("image/jpg" in metadata) or ("image/jpeg" in metadata):
@@ -389,7 +396,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
           extension = ".svg";
         elif "image/webp" in metadata:
           extension = ".webp";
-        image_data = base64.b64decode(encoded_image);
+        imageData = base64.b64decode(encodedImage);
         dump_fname = f"raw/output-{ ns }_{ imageCount }.txt";
         with open(dump_fname, "w") as f:
           f.write(prompt);
@@ -398,14 +405,22 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
           f.write("\n");
           f.write(metadata);
           f.write("\n");
-          f.write(encoded_image);
+          f.write(encodedImage);
           f.write("\n");
-        image_fname = f"generated/image-{ ns }_{ imageCount }{ extension }";
+        imageFname = f"generated/image-{ ns }_{ imageCount }{ extension }";
         if extension is not None:
-          with open(image_fname, "wb") as f:
-            f.write(image_data);
+          with open(imageFname, "wb") as f:
+            f.write(imageData);
+          if (extension != ".svg") and (extension != ".png"):
+            console.print("Converting to PNG...", style="bold cyan");
+            newName = f"generated/image-{ ns }_{ imageCount }.png";
+            with Image.open(imageFname) as f:
+              f.save(newName);
+            os.unlink(imageFname);
+            console.print(f"Deleted { imageFname }");
+            imageFname = newName;
           console.print("Written ", end="");
-          console.print(f"{ image_fname }!", style="bold bright_white");
+          console.print(f"{ imageFname }!", style="bold bright_white");
         else:
           console.print(
             f"Unknown image format - check { dump_fname }",

@@ -14,14 +14,14 @@ def TimestampToYMD(timestamp : int) -> str:
 
 ################################################################################
 
-def Image2Png(fname : str) -> str:
+def Image2PngBase64(fname : str) -> str:
   try:
+    buffer = io.BytesIO();
     with Image.open(fname) as f:
-      buffer = io.BytesIO();
       f.save(buffer, format="PNG");
-      pngBytes = buffer.getvalue();
-      b64img = base64.b64encode(pngBytes).decode('utf-8');
-      return b64img;
+    pngBytes = buffer.getvalue();
+    b64img = base64.b64encode(pngBytes).decode('utf-8');
+    return b64img;
   except Exception as e:
     console.print(f"{ e }", style="bold red");
     return "";
@@ -48,7 +48,7 @@ def EncodeImage(fname : str) -> str:
       return f"data:image/{ imgDataMarkerByExtension[extension] };base64,{ imageBytes.decode('utf-8') }";
     else:
       console.print("Converting to png in memory...", style="bold white");
-      imageBase64 = Image2Png(fname);
+      imageBase64 = Image2PngBase64(fname);
       return f"data:image/png;base64,{ imageBase64 }" if imageBase64 else "";
   except Exception as e:
     console.print(f"{ e }", style="bold red");
