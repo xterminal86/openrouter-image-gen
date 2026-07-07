@@ -10,4 +10,6 @@ venv/
 *.svg
 *.webp
 *.tiff
+*.json
+!socks-creds-example.json
 !logo.png

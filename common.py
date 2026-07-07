@@ -6,14 +6,16 @@ from rich.table import Table;
 
 from utils import console;
 
-def DisplayCredits(API_KEY : str):
+def DisplayCredits(API_KEY : str, pd : ProgramDataClass):
   CREDITS_URL = "https://openrouter.ai/api/v1/credits";
 
   response = requests.get(
     url=CREDITS_URL,
     headers={
       "Authorization": f"Bearer { API_KEY }",
-    }
+    },
+    proxies=pd.Proxies,
+    timeout=pd.RequestsTimeout
   );
 
   if (response.status_code != requests.codes.ok):
