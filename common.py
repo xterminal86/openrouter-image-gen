@@ -4,7 +4,8 @@ import json;
 from rich       import print_json;
 from rich.table import Table;
 
-from utils import console;
+from program_data import ProgramDataClass;
+from utils        import console;
 
 def DisplayCredits(API_KEY : str, pd : ProgramDataClass):
   CREDITS_URL = "https://openrouter.ai/api/v1/credits";

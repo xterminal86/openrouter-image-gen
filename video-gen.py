@@ -1,3 +1,4 @@
+import argparse;
 import time;
 import json;
 import requests;
@@ -8,68 +9,49 @@ from rich.prompt    import Prompt;
 from prompt_toolkit import PromptSession;
 from datetime       import datetime;
 
-from utils  import RenderCmdPrompt, TimestampToYMD, EncodeImage, console;
-from common import DisplayCredits;
+from program_data import ProgramDataClass;
+from common       import DisplayCredits;
 
-class ProgramDataClass:
-  MODELS_LIST_URL = "https://openrouter.ai/api/v1/videos/models";
-  GENERATION_URL  = "https://openrouter.ai/api/v1/videos";
+from utils import (
+  RenderCmdPrompt,
+  TimestampToYMD,
+  EncodeImage,
+  console
+);
 
-  def __init__(self):
-    self.CmdPrompt = "";
-    self.ModelInd = -1;
-    self.Models = [];
-    self.ReferenceImage = "";
+def GetModelsList(pd : ProgramDataClass) -> list:
+  res = [];
 
-    # For command prompt.
-    self.InModel = "";
-    self.InImage = "";
+  try:
+    response = requests.get(
+      url=pd.MODELS_LIST_URL_VIDEO,
+      proxies=pd.Proxies,
+      timeout=pd.RequestsTimeout
+    );
+    result = response.json();
 
-    self.API_KEY = "";
+    lst = result["data"];
 
-    try:
-      with open(".key") as f:
-        self.API_KEY = f.readline().rstrip();
-    except Exception as e:
-      console.print(
-        "OpenRouter API key not found! Put it inside .key file.",
-        style="bold red"
-      );
-      exit(1);
+    for item in lst:
+      dict = {
+          "modelId"     : item["id"]
+        , "modelName"   : item["name"]
+        , "createdAt"   : TimestampToYMD(item["created"])
+        , "description" : item["description"]
+        , "resolution"  : item["supported_sizes"]
+        , "duration"    : item["supported_durations"]
+        , "pricing"     : item["pricing_skus"]
+        , "references"  : item["supported_frame_images"]
+        , "audio"       : item["generate_audio"]
+      };
 
-    self.Models = self.GetModelsList();
+      res.append(dict);
 
-  # ----------------------------------------------------------------------------
+  except Exception as e:
+    print(f"{ e }");
+    exit(1);
 
-  def GetModelsList(self) -> list:
-    res = [];
-
-    try:
-      response = requests.get(url=self.MODELS_LIST_URL);
-      result = response.json();
-
-      lst = result["data"];
-
-      for item in lst:
-        dict = {
-            "modelId"     : item["id"]
-          , "modelName"   : item["name"]
-          , "createdAt"   : TimestampToYMD(item["created"])
-          , "description" : item["description"]
-          , "resolution"  : item["supported_sizes"]
-          , "duration"    : item["supported_durations"]
-          , "pricing"     : item["pricing_skus"]
-          , "references"  : item["supported_frame_images"]
-          , "audio"       : item["generate_audio"]
-        };
-
-        res.append(dict);
-
-    except Exception as e:
-      print(f"{ e }");
-      exit(1);
-
-    return res;
+  return res;
 
 ################################################################################
 
@@ -282,7 +264,7 @@ def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
 
 @Command("/credits")
 def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
-  DisplayCredits(pd.API_KEY);
+  DisplayCredits(pd.API_KEY, pd);
   return False;
 
 ################################################################################
@@ -353,12 +335,14 @@ def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
     choice = choice.lower();
     if choice == "y":
       response = requests.post(
-        pd.GENERATION_URL,
+        pd.GENERATION_URL_VIDEO,
         headers={
           "Authorization": f"Bearer { pd.API_KEY }",
           "Content-Type": "application/json",
         },
-        json=json.loads(req)
+        json=json.loads(req),
+        proxies=pd.Proxies,
+        timeout=pd.RequestsTimeout
       );
 
       result = response.json();
@@ -375,7 +359,9 @@ def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
             url=pollingUrl,
             headers={
               "Authorization": f"Bearer { pd.API_KEY }"
-            }
+            },
+            proxies=pd.Proxies,
+            timeout=pd.RequestsTimeout
           );
           status = pollResponse.json();
           print(f"Status: { status['status'] }");
@@ -388,8 +374,11 @@ def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
               response = requests.get(
                 vurl,
                 headers={
-                  "Authorization": f"Bearer { pd.API_KEY }"
-              });
+                  "Authorization": f"Bearer { pd.API_KEY }",
+                },
+                proxies=pd.Proxies,
+                timeout=pd.RequestsTimeout
+              );
               n = datetime.now().replace(microsecond=0);
               ns = n.strftime("%Y-%m-%d-%H-%M-%S");
               fname = f"generated/video_{ ns }_{ counter }.mp4";
@@ -431,6 +420,29 @@ def ProcessCommand(pd : ProgramDataClass, inline : str) -> bool:
 
 def main():
   programData = ProgramDataClass();
+
+  parser = argparse.ArgumentParser();
+
+  parser.add_argument(
+    "--socks-creds",
+    type=str,
+    default="",
+    help="JSON file with credentials for socks5 proxy server."
+  );
+
+  args = parser.parse_args();
+
+  if (args.socks_creds):
+    try:
+      creds = None;
+      with open(args.socks_creds, "r") as f:
+        creds = json.loads(f.read());
+      programData.ProcessSocksCreds(creds);
+    except Exception as e:
+      console.print(f"{ e }", style="bold red");
+      exit(1);
+
+  programData.Models = GetModelsList(programData);
 
   promptSession = PromptSession();
 

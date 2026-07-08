@@ -11,8 +11,6 @@ from rich           import box, print_json;
 from rich.table     import Table;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
-from urllib.parse   import quote;
-from pathlib        import Path;
 
 from utils  import (
   RenderCmdPrompt,
@@ -21,68 +19,16 @@ from utils  import (
   console
 );
 
-class ProgramDataClass:
-  MODELS_LIST_URL = "https://openrouter.ai/api/v1/models?output_modalities=image";
-  GENERATION_URL  = "https://openrouter.ai/api/v1/chat/completions";
-
-  def __init__(self):
-    self.API_KEY = "";
-
-    try:
-      with open(".key") as f:
-        self.API_KEY = f.readline().rstrip();
-    except Exception as e:
-      console.print(
-        "OpenRouter API key not found! Put it inside .key file.",
-        style="bold red"
-      );
-      exit(1);
-    
-    self.CommandMode = False;
-    self.ReferenceImage = "";
-    self.Models = [];
-    self.ModelsBrief = [];
-    self.ModelInd = -1;
-
-    # For displaying in command prompt.
-    self.InModel = "";
-    self.InImage = "";
-     
-    #
-    # The "heaviest" model being riverflow pro generates image in about
-    # 3 minutes. So 4 for read timeout should be enough.
-    #
-    self.RequestsTimeout = (10, 240);
-    
-    #
-    # For socks5 proxying.
-    # 
-    self.Proxies = None;
-        
-  # ----------------------------------------------------------------------------
-    
-  def ProcessSocksCreds(self, creds : dict):
-    username = creds["username"];
-    passwd   = quote(creds["password"], safe='');
-    host     = creds["host"];
-    port     = creds["port"];
-    
-    self.Proxies = {
-      'http' : f'socks5h://{ username }:{ passwd }@{ host }:{ port }',
-      'https': f'socks5h://{ username }:{ passwd }@{ host }:{ port }'
-    };    
-
-################################################################################
-
-from common import DisplayCredits;
+from program_data import ProgramDataClass;
+from common       import DisplayCredits;
 
 ################################################################################
 
 def ListModels(silent : bool, pd : ProgramDataClass) -> list:
   try:
     response = requests.get(
-      url=pd.MODELS_LIST_URL, 
-      proxies=pd.Proxies,      
+      url=pd.MODELS_LIST_URL_IMAGE,
+      proxies=pd.Proxies,
       timeout=pd.RequestsTimeout
     );
     result = response.json();
@@ -217,7 +163,7 @@ def GetModelsListBrief(pd : ProgramDataClass) -> list:
 
   try:
     response = requests.get(
-      url=pd.MODELS_LIST_URL,
+      url=pd.MODELS_LIST_URL_IMAGE,
       proxies=pd.Proxies,
       timeout=pd.RequestsTimeout
     );
@@ -350,7 +296,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         "Authorization": f"Bearer { pd.API_KEY }",
         "Content-Type": "application/json",
       },
-      data=jsonToSend,      
+      data=jsonToSend,
       proxies=pd.Proxies,
       timeout=pd.RequestsTimeout
     );
@@ -765,12 +711,12 @@ def main():
   );
 
   parser.add_argument(
-    "--socks-creds", 
-    type=str, 
-    default="", 
+    "--socks-creds",
+    type=str,
+    default="",
     help="JSON file with credentials for socks5 proxy server."
   );
-  
+
   group = parser.add_mutually_exclusive_group();
 
   group.add_argument(
@@ -789,19 +735,19 @@ def main():
     action="store_true",
     help="List available models"
   );
-  
+
   args = parser.parse_args();
 
   if (args.socks_creds):
     try:
       creds = None;
       with open(args.socks_creds, "r") as f:
-        creds = json.loads(f.read());      
+        creds = json.loads(f.read());
       pd.ProcessSocksCreds(creds);
     except Exception as e:
       console.print(f"{ e }", style="bold red");
       exit(1);
-      
+
   prompt = args.prompt;
 
   if (args.file):

@@ -13,3 +13,4 @@ venv/
 *.json
 !socks-creds-example.json
 !logo.png
+*.sh
