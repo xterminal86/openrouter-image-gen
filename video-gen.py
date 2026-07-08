@@ -270,21 +270,21 @@ def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
 ################################################################################
 
 @Command("/brief")
-def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+def ProcessBrief(args : str, pd : ProgramDataClass) -> bool:
   DisplayModelsBrief(pd.Models);
   return False;
 
 ################################################################################
 
 @Command("/models")
-def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+def ProcessModels(args : str, pd : ProgramDataClass) -> bool:
   DisplayModels(pd.Models);
   return False;
 
 ################################################################################
 
 @Command("/select")
-def ProcessCredits(args : str, pd : ProgramDataClass) -> bool:
+def ProcessSelect(args : str, pd : ProgramDataClass) -> bool:
   if not args:
     console.print("Need model index!", style="bold red");
     return False;

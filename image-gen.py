@@ -291,7 +291,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
 
   try:
     response = requests.post(
-      url=pd.GENERATION_URL,
+      url=pd.GENERATION_URL_IMAGE,
       headers={
         "Authorization": f"Bearer { pd.API_KEY }",
         "Content-Type": "application/json",
