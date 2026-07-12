@@ -37,7 +37,7 @@ class ProgramDataClass:
     # The "heaviest" model being riverflow pro generates image in about
     # 3 minutes. So 5 for read timeout should be enough.
     #
-    self.RequestsTimeout = (10, 300);
+    self.RequestsTimeout = (30, 300);
 
     #
     # For socks5 proxying.
