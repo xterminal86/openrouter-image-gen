@@ -357,8 +357,9 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
   os.makedirs("raw",       exist_ok=True);
   os.makedirs("errors",    exist_ok=True);
 
-  with open(f"raw/full-reply-{ ns }.txt", "w") as f:
-    f.write(json.dumps(result, indent=2));
+  if pd.Verbose:
+    with open(f"raw/full-reply-{ ns }.txt", "w") as f:
+      f.write(json.dumps(result, indent=2));
 
   if result.get("choices"):
     message = result["choices"][0]["message"];
@@ -378,16 +379,17 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         elif "image/webp" in metadata:
           extension = ".webp";
         imageData = base64.b64decode(encodedImage);
-        dump_fname = f"raw/output-{ ns }_{ imageCount }.txt";
-        with open(dump_fname, "w") as f:
+        dumpFname = f"raw/output-{ ns }_{ imageCount }.txt";
+        with open(dumpFname, "w") as f:
           f.write(prompt);
           f.write("\n");
           f.write(modelName);
           f.write("\n");
-          f.write(metadata);
-          f.write("\n");
-          f.write(encodedImage);
-          f.write("\n");
+          if pd.Verbose:
+            f.write(metadata);
+            f.write("\n");
+            f.write(encodedImage);
+            f.write("\n");
         imageFname = f"generated/image-{ ns }_{ imageCount }{ extension }";
         if extension is not None:
           with open(imageFname, "wb") as f:
@@ -404,7 +406,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
           console.print(f"{ imageFname }!", style="bold bright_white");
         else:
           console.print(
-            f"Unknown image format - check { dump_fname }",
+            f"Unknown image format - check { dumpFname }",
             style="bold bright_yellow"
           );
         imageCount += 1;
@@ -647,9 +649,6 @@ def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
 @Command("/prompt")
 def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
   prompt = args;
-  if not prompt:
-    console.print("Empty prompt string!", style="bold red");
-    return False;
 
   if pd.ModelInd == -1:
     console.print("Select model first!", style="bold red");
@@ -716,6 +715,11 @@ def main():
     default="",
     help="JSON file with credentials for socks5 proxy server."
   );
+  parser.add_argument(
+    "--verbose",
+    action="store_true",
+    help="Save additional output and full reply as well."
+  );
 
   group = parser.add_mutually_exclusive_group();
 
@@ -747,6 +751,8 @@ def main():
     except Exception as e:
       console.print(f"{ e }", style="bold red");
       exit(1);
+
+  pd.Verbose = args.verbose;
 
   prompt = args.prompt;
 

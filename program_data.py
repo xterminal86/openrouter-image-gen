@@ -44,6 +44,8 @@ class ProgramDataClass:
     #
     self.Proxies = None;
 
+    self.Verbose = False;
+
   # ----------------------------------------------------------------------------
 
   def ProcessSocksCreds(self, creds : dict):

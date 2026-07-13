@@ -317,10 +317,6 @@ def ProcessPrompt(args : str, pd : ProgramDataClass) -> bool:
     console.print("Select model first!", style="bold red");
     return False;
 
-  if not prompt:
-    console.print("Prompt string is empty!", style="bold red");
-    return False;
-
   try:
     req = PrepareRequest(prompt, pd);
     toPrint = json.loads(req);
