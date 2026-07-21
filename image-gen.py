@@ -769,7 +769,7 @@ def main():
   elif (prompt):
     pd.Models = GetModelsListBrief(pd);
     DisplayModelsBrief(pd.Models);
-    DisplayCredits(pd.API_KEY);
+    DisplayCredits(pd.API_KEY, pd);
     choice = ChooseModel(pd.Models);
     if (choice == -1):
       exit(1);
