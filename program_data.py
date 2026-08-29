@@ -5,7 +5,8 @@ console = Console();
 
 class ProgramDataClass:
   MODELS_LIST_URL_IMAGE = "https://openrouter.ai/api/v1/models?output_modalities=image";
-  GENERATION_URL_IMAGE  = "https://openrouter.ai/api/v1/chat/completions";
+  #GENERATION_URL_IMAGE  = "https://openrouter.ai/api/v1/chat/completions";
+  GENERATION_URL_IMAGE  = "https://openrouter.ai/api/v1/images";
 
   MODELS_LIST_URL_VIDEO = "https://openrouter.ai/api/v1/videos/models";
   GENERATION_URL_VIDEO  = "https://openrouter.ai/api/v1/videos";

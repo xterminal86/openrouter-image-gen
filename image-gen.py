@@ -221,26 +221,12 @@ def ChooseModel(models : list) -> int:
 
 ################################################################################
 
-def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
+def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):  
   jsonPayload = {
-      "model": modelName
-    , "messages": [
-        {
-          "role": "user",
-          "content" : [
-            {
-              "type" : "text",
-              "text" : prompt
-            }
-          ]
-        }
-      ]
-    , "modalities": [ "image" ]
-    , "image_config": {
-      "aspect_ratio": "1:1"
-    }
+    "model": modelName
+  , "prompt" : prompt
   };
-
+  
   if pd.ReferenceImage:
     toAppend = {
       "type" : "image_url",
@@ -248,20 +234,18 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         "url" : pd.ReferenceImage
       }
     };
-    jsonPayload["messages"][0]["content"].append(toAppend);
-  else:
-    jsonPayload["messages"][0]["content"] = prompt;
-
+    jsonPayload["input_references"] = [ toAppend ];
+    
   jsonToSend = json.dumps(jsonPayload);
   payloadCopy = copy.deepcopy(jsonPayload);
 
-  if isinstance(payloadCopy["messages"][0]["content"], list):
-    d = payloadCopy["messages"][0]["content"][1];
+  if "input_references" in jsonPayload.keys():
+    d = payloadCopy["input_references"][0];
     imgUrl = d["image_url"]["url"];
     if "data:image" in imgUrl:
       imgUrl = f"{ d['image_url']['url'][:50] }...";
     d["image_url"]["url"] = imgUrl;
-
+  
   jsonToPrint = json.dumps(payloadCopy);
 
   while True:
@@ -331,9 +315,10 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       return;
 
   result = None;
-
+  
   try:
     result = response.json();
+    #print_json(json.dumps(result));
   except Exception as e:
     console.print(
       "Error while trying to deserialize response object as JSON!",
@@ -361,75 +346,82 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
     with open(f"raw/full-reply-{ ns }.txt", "w") as f:
       f.write(json.dumps(result, indent=2));
 
-  if result.get("choices"):
-    message = result["choices"][0]["message"];
-    if message.get("images"):
-      imageCount = 1;
-      for image in message["images"]:
-        output = image["image_url"]["url"];
-        metadata, encodedImage = output.split(",", 1);
-        print(f"Got { metadata }");
-        extension = None;
-        if ("image/jpg" in metadata) or ("image/jpeg" in metadata):
-          extension = ".jpg";
-        elif "image/png" in metadata:
-          extension = ".png";
-        elif "image/svg" in metadata:
-          extension = ".svg";
-        elif "image/webp" in metadata:
-          extension = ".webp";
-        imageData = base64.b64decode(encodedImage);
-        dumpFname = f"raw/output-{ ns }_{ imageCount }.txt";
-        with open(dumpFname, "w") as f:
-          f.write(prompt);
-          f.write("\n");
-          f.write(modelName);
-          f.write("\n");
-          if pd.Verbose:
-            f.write(metadata);
-            f.write("\n");
-            f.write(encodedImage);
-            f.write("\n");
-        imageFname = f"generated/image-{ ns }_{ imageCount }{ extension }";
-        if extension is not None:
-          with open(imageFname, "wb") as f:
-            f.write(imageData);
-          if (extension != ".svg") and (extension != ".png"):
-            console.print("Converting to PNG...", style="bold cyan");
-            newName = f"generated/image-{ ns }_{ imageCount }.png";
-            with Image.open(imageFname) as f:
-              f.save(newName);
-            os.unlink(imageFname);
-            console.print(f"Deleted { imageFname }");
-            imageFname = newName;
-          console.print("Written ", end="");
-          console.print(f"{ imageFname }!", style="bold bright_white");
-        else:
-          console.print(
-            f"Unknown image format - check { dumpFname }",
-            style="bold bright_yellow"
-          );
-        imageCount += 1;
-
-      if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
-        console.print("Model used: ", end="");
-        console.print(f"{ result['model'] }", style="bold cyan");
-
-      console.print("Cost:");
-      console.print("-"*80);
-      print_json(json.dumps(result["usage"]));
-      console.print("-"*80);
-      console.print();
+  if not result.get("data"):
+    console.print(
+      "Received no images.",
+      style="bold yellow"
+    );
+    fname = f"errors/{ ns }-full-response.txt";
+    fullResponse = json.dumps(result, indent=2);
+    with open(fname, "w") as f:
+      f.write(fullResponse);
+    console.print(f"Written { fname }");
+    return;
+      
+  imageCount = 1;
+  for message in result["data"]:      
+    if not message.get("b64_json"):
+      console.print("No 'b64_json' field!", style="bold red");
+      return;
+    
+    output = message["b64_json"];        
+    
+    mediaType = message.get("media_type");
+          
+    print(f"Got media type: '{ mediaType }'");
+    extension = None;
+    if ("image/jpg" in mediaType) or ("image/jpeg" in mediaType):
+      extension = ".jpg";
+    elif "image/png" in mediaType:
+      extension = ".png";
+    elif "image/svg" in mediaType:
+      extension = ".svg";
+    elif "image/webp" in mediaType:
+      extension = ".webp";
+    imageData = base64.b64decode(output);
+    dumpFname = f"raw/output-{ ns }_{ imageCount }.txt";
+    with open(dumpFname, "w") as f:
+      f.write(prompt);
+      f.write("\n");
+      f.write(modelName);
+      f.write("\n");
+      if pd.Verbose:
+        f.write(metadata);
+        f.write("\n");
+        f.write(output);
+        f.write("\n");
+    imageFname = f"generated/image-{ ns }_{ imageCount }{ extension }";
+    if extension is not None:
+      with open(imageFname, "wb") as f:
+        f.write(imageData);
+      if (extension != ".svg") and (extension != ".png"):
+        console.print("Converting to PNG...", style="bold cyan");
+        newName = f"generated/image-{ ns }_{ imageCount }.png";
+        with Image.open(imageFname) as f:
+          f.save(newName);
+        os.unlink(imageFname);
+        console.print(f"Deleted { imageFname }");
+        imageFname = newName;
+      console.print("Written ", end="");
+      console.print(f"{ imageFname }!", style="bold bright_white");
     else:
       console.print(
-        "Received no images - it might've fallen back to text generation.",
-        style="bold yellow"
+        "Unknown image format - raw base64 follows:",
+        style="bold bright_yellow"
       );
-      fname = f"errors/{ ns }-full-response.txt";
-      fullResponse = json.dumps(result, indent=2);
-      with open(fname, "w") as f:
-        f.write(fullResponse);
-      console.print(f"Written { fname }");
+      console.print(output);
+      
+    imageCount += 1;
+
+    if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
+      console.print("Model used: ", end="");
+      console.print(f"{ result['model'] }", style="bold cyan");
+
+    console.print("Cost:");
+    console.print("-"*80);
+    print_json(json.dumps(result["usage"]));
+    console.print("-"*80);
+    console.print();          
 
 ################################################################################
 
@@ -532,7 +524,6 @@ AllCommands = {
 
 def Command(name : str):
   def _decorator(f):
-    f.FunctionName = name;
     CommandHandlers[name] = f;
     return f;
   return _decorator;
@@ -627,23 +618,38 @@ def ProcessSelect(args : str, pd : ProgramDataClass) -> bool:
 ################################################################################
 
 @Command("/image")
-@Command("/url")
-def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
+def ProcessImage(args : str, pd : ProgramDataClass) -> bool:  
   if not args:
     pd.ReferenceImage = "";
     console.print("Reference image is reset.", style="bold white");
     pd.InImage = "";
   else:
-    pd.ReferenceImage = (
-      EncodeImage(args) if (ProcessImage.FunctionName == "/image") else args
-    )
+    pd.ReferenceImage = EncodeImage(args);
     if pd.ReferenceImage:
       console.print(
         f"Reference image set: '{ args }'", style="bold white"
       );
       pd.InImage = args;
+      
   return False;
 
+################################################################################
+
+@Command("/url")
+def ProcessUrl(args : str, pd : ProgramDataClass) -> bool:
+  if not args:
+    pd.ReferenceImage = "";
+    console.print("Reference URL is reset.", style="bold white");
+    pd.InImage = "";
+  else:
+    pd.ReferenceImage = args;
+    pd.InImage = args;
+    console.print(
+      f"Reference URL set: '{ args }'", style="bold white"
+    );
+      
+  return False;  
+  
 ################################################################################
 
 @Command("/prompt")
