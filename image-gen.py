@@ -11,8 +11,9 @@ from rich           import box, print_json;
 from rich.table     import Table;
 from datetime       import datetime;
 from prompt_toolkit import PromptSession;
+from prompt_toolkit.completion import PathCompleter;
 
-from utils  import (
+from utils import (
   RenderCmdPrompt,
   TimestampToYMD,
   EncodeImage,
@@ -221,12 +222,12 @@ def ChooseModel(models : list) -> int:
 
 ################################################################################
 
-def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):  
+def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
   jsonPayload = {
     "model": modelName
   , "prompt" : prompt
   };
-  
+
   if pd.ReferenceImage:
     toAppend = {
       "type" : "image_url",
@@ -235,7 +236,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       }
     };
     jsonPayload["input_references"] = [ toAppend ];
-    
+
   jsonToSend = json.dumps(jsonPayload);
   payloadCopy = copy.deepcopy(jsonPayload);
 
@@ -245,7 +246,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
     if "data:image" in imgUrl:
       imgUrl = f"{ d['image_url']['url'][:50] }...";
     d["image_url"]["url"] = imgUrl;
-  
+
   jsonToPrint = json.dumps(payloadCopy);
 
   while True:
@@ -315,7 +316,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       return;
 
   result = None;
-  
+
   try:
     result = response.json();
     #print_json(json.dumps(result));
@@ -357,17 +358,17 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
       f.write(fullResponse);
     console.print(f"Written { fname }");
     return;
-      
+
   imageCount = 1;
-  for message in result["data"]:      
+  for message in result["data"]:
     if not message.get("b64_json"):
       console.print("No 'b64_json' field!", style="bold red");
       return;
-    
-    output = message["b64_json"];        
-    
+
+    output = message["b64_json"];
+
     mediaType = message.get("media_type");
-          
+
     print(f"Got media type: '{ mediaType }'");
     extension = None;
     if ("image/jpg" in mediaType) or ("image/jpeg" in mediaType):
@@ -410,7 +411,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
         style="bold bright_yellow"
       );
       console.print(output);
-      
+
     imageCount += 1;
 
     if ("openrouter/auto" in modelName) or ("openrouter/free" in modelName):
@@ -421,7 +422,7 @@ def GenerateImage(prompt : str, modelName : str, pd : ProgramDataClass):
     console.print("-"*80);
     print_json(json.dumps(result["usage"]));
     console.print("-"*80);
-    console.print();          
+    console.print();
 
 ################################################################################
 
@@ -618,7 +619,7 @@ def ProcessSelect(args : str, pd : ProgramDataClass) -> bool:
 ################################################################################
 
 @Command("/image")
-def ProcessImage(args : str, pd : ProgramDataClass) -> bool:  
+def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
   if not args:
     pd.ReferenceImage = "";
     console.print("Reference image is reset.", style="bold white");
@@ -630,7 +631,7 @@ def ProcessImage(args : str, pd : ProgramDataClass) -> bool:
         f"Reference image set: '{ args }'", style="bold white"
       );
       pd.InImage = args;
-      
+
   return False;
 
 ################################################################################
@@ -647,9 +648,9 @@ def ProcessUrl(args : str, pd : ProgramDataClass) -> bool:
     console.print(
       f"Reference URL set: '{ args }'", style="bold white"
     );
-      
-  return False;  
-  
+
+  return False;
+
 ################################################################################
 
 @Command("/prompt")
@@ -678,7 +679,13 @@ def ProcessCommands(pd : ProgramDataClass):
   console.print("/help to display help.");
   console.print("/exit to exit.");
 
-  promptSession = PromptSession();
+  promptSession = PromptSession(
+    completer=PathCompleter(
+      expanduser=True,
+      get_paths=lambda: ['./'],
+    ),
+    complete_while_typing=False,
+  );
 
   shouldExit = False;
 
